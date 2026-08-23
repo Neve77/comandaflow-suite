@@ -1,17 +1,34 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const { execFileSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..', '..');
+const backendDir = path.join(rootDir, 'backend');
 const testUserData = fs.mkdtempSync(path.join(os.tmpdir(), 'comandaflow-manager-service-test-'));
+const testDatabaseName = `subscription-test-${process.pid}.db`;
+const testDatabasePath = path.join(backendDir, 'prisma', testDatabaseName);
 process.env.COMANDAFLOW_MANAGER_MODE = 'true';
 process.env.COMANDAFLOW_USER_DATA = testUserData;
 process.env.COMANDAFLOW_APP_VERSION = '2.3.0';
 process.env.APPDATA = testUserData;
-process.env.DATABASE_URL = 'file:./desktop-template.db';
+process.env.DATABASE_URL = `file:./${testDatabaseName}`;
 process.env.JWT_SECRET = 'test-only-subscription-secret-with-more-than-32-characters';
 process.env.CF_LICENSE_PRIVATE_KEY_PATH = path.join(rootDir, '.secrets', 'license-private.pem');
 process.env.NODE_ENV = 'test';
+
+fs.closeSync(fs.openSync(testDatabasePath, 'a'));
+execFileSync(process.execPath, [
+  path.join(backendDir, 'node_modules', 'prisma', 'build', 'index.js'),
+  'migrate',
+  'deploy',
+  '--schema',
+  path.join(backendDir, 'prisma', 'schema.prisma'),
+], {
+  cwd: backendDir,
+  env: process.env,
+  stdio: 'pipe',
+});
 
 const request = require(path.join(rootDir, 'backend', 'node_modules', 'supertest'));
 const app = require(path.join(rootDir, 'backend', 'src', 'app'));
@@ -186,4 +203,7 @@ main()
     await prisma.user.deleteMany();
     await prisma.$disconnect();
     fs.rmSync(testUserData, { recursive: true, force: true });
+    for (const suffix of ['', '-journal', '-wal', '-shm']) {
+      fs.rmSync(`${testDatabasePath}${suffix}`, { force: true });
+    }
   });

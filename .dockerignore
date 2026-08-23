@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.github
+.desktop-runtime
+.secrets
+.env*
+!.env.example
+.DS_Store
+*.log
+*.db
+*.db-*
+backups
+coverage

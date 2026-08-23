@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String?
+  email     String   @unique
+  password  String
+  role      String   @default("administrador")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auditLogs AuditLog[]
+}
+
+model Subscriber {
+  id            String         @id @default(uuid())
+  businessName  String
+  contactName   String?
+  email         String         @unique
+  phone         String?
+  document      String?
+  status        String         @default("ativo") // ativo, suspenso, cancelado
+  suspensionMode String?
+  accessUntil    DateTime?
+  customerMessage String?
+  suspendedAt    DateTime?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id           String     @id @default(uuid())
+  subscriber   Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId String
+  plan         String
+  status       String     @default("ativo") // ativo, substituido, expirado, cancelado
+  startsAt     DateTime   @default(now())
+  expiresAt    DateTime
+  maxDevices   Int        @default(1)
+  licenseKey   String     @unique
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  installations LicenseInstallation[]
+
+  @@index([subscriberId])
+  @@index([status, expiresAt])
+}
+
+model LicenseInstallation {
+  id             String       @id @default(uuid())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionId String
+  installationId String
+  deviceName     String?
+  active         Boolean      @default(true)
+  firstSeenAt    DateTime     @default(now())
+  lastSeenAt     DateTime     @updatedAt
+
+  @@unique([subscriptionId, installationId])
+  @@index([subscriptionId, active])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model Mesa {
+  id         String    @id @default(uuid())
+  numero     String    @unique
+  capacidade Int       @default(4)
+  status     String    @default("livre") // livre, ocupada, pagamento, reservada
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  comandas   Comanda[]
+}
+
+model Categoria {
+  id        String    @id @default(uuid())
+  nome      String    @unique
+  ordem     Int       @default(0)
+  ativa     Boolean   @default(true)
+  produtos  Produto[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Bracelet {
+  id            String    @id @default(uuid())
+  number        String    @unique
+  type          String    @default("QR")
+  status        String    @default("livre")
+  blockedReason String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  comandas      Comanda[]
+}
+
+model Comanda {
+  id                  String        @id @default(uuid())
+  mesa                Mesa?         @relation(fields: [mesaId], references: [id])
+  mesaId              String?
+  bracelet            Bracelet?     @relation(fields: [braceletId], references: [id])
+  braceletId          String?
+  client              Client?       @relation(fields: [clientId], references: [id])
+  clientId            String?
+  event               Event?        @relation(fields: [eventId], references: [id])
+  eventId             String?
+  status              String        @default("aberta") // aberta, fechada, cancelada
+  openedAt            DateTime      @default(now())
+  closedAt            DateTime?
+  canceladaEm         DateTime?
+  motivoCancelamento  String?
+  total               Decimal       @default("0")
+  desconto            Decimal       @default("0")
+  formaPagamento      String?       // dinheiro, pix, debito, credito, outros
+  clienteNome         String        @default("")
+  clienteCpf          String        @default("")
+  clienteTelefone     String        @default("")
+  clienteEmail        String        @default("")
+  clienteNascimento   DateTime?
+  pedidos             Pedido[]
+}
+
+model Pedido {
+  id            String   @id @default(uuid())
+  comanda       Comanda  @relation(fields: [comandaId], references: [id])
+  comandaId     String
+  produto       Produto? @relation(fields: [produtoId], references: [id])
+  produtoId     String?
+  nome          String
+  quantidade    Int
+  valorUnitario Decimal
+  subtotal      Decimal
+  observacao    String   @default("")
+  status        String   @default("pendente") // pendente, em_preparo, pronto, entregue
+  cancelado     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+}
+
+model Produto {
+  id            String          @id @default(uuid())
+  nome          String
+  preco         Decimal
+  categoria     String          @default("Geral")
+  categoriaRel  Categoria?      @relation(fields: [categoriaId], references: [id])
+  categoriaId   String?
+  descricao     String?
+  ativo         Boolean         @default(true)
+  estoque       Int             @default(0)
+  estoqueMinimo Int             @default(5)
+  imagemUrl     String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  pedidos       Pedido[]
+  stockMovements StockMovement[]
+}
+
+model Client {
+  id              String    @id @default(uuid())
+  name            String
+  cpf             String    @unique
+  phone           String
+  email           String?
+  birthDate       DateTime?
+  blocked         Boolean   @default(false)
+  notes           String?
+  loyaltyPoints   Int       @default(0)
+  cashbackBalance Decimal   @default("0")
+  tier            String    @default("Bronze")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  comandas        Comanda[]
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  name        String
+  description String?
+  location    String?
+  capacity    Int       @default(0)
+  status      String    @default("planejado")
+  startAt     DateTime?
+  endAt       DateTime?
+  checkIns    Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  comandas    Comanda[]
+}
+
+model CashMovement {
+  id             String   @id @default(uuid())
+  type           String   // abertura, entrada, saida, sangria, fechamento
+  formaPagamento String   @default("dinheiro") // dinheiro, pix, debito, credito
+  amount         Decimal
+  description    String
+  createdAt      DateTime @default(now())
+}
+
+model StockMovement {
+  id            String   @id @default(uuid())
+  produto       Produto  @relation(fields: [produtoId], references: [id])
+  produtoId     String
+  type          String   // entrada, saida, inventario, perda
+  quantity      Int
+  previousStock Int
+  newStock      Int
+  reason        String?
+  createdAt     DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  String?
+  ip        String?
+  device    String?
+  createdAt DateTime @default(now())
+}
+
+model DeviceSession {
+  id          String   @id @default(uuid())
+  name        String?
+  socketId    String?
+  ip          String?
+  role        String   @default("garcom")
+  status      String   @default("ativo")
+  pairingCode String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BackupRecord {
+  id        String   @id @default(uuid())
+  filename  String
+  path      String
+  size      Int
+  createdAt DateTime @default(now())
+}

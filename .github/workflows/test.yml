@@ -1,0 +1,62 @@
+name: Validar projeto
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:./ci.db
+      JWT_SECRET: test-only-ci-secret-with-more-than-32-characters
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Instalar dependências
+        run: |
+          npm ci
+          npm --prefix backend ci
+          npm --prefix frontend ci
+
+      - name: Preparar banco de teste
+        run: |
+          npm --prefix backend run prisma:generate
+          npm --prefix backend run migrate:prod
+          npm --prefix backend run seed -- --demo
+
+      - name: Executar testes do backend
+        run: npm --prefix backend test
+
+      - name: Validar assinaturas e atualizações
+        run: |
+          npm run prepare:licenses
+          npm run test:subscriptions
+
+      - name: Gerar frontend
+        run: npm run build:frontend
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validar Docker Compose
+        env:
+          JWT_SECRET: test-only-docker-secret-with-more-than-32-characters
+          FRONTEND_URL: http://localhost:5173
+          VITE_API_URL: http://localhost:3000
+        run: docker compose -f docker-compose.prod.yml config --quiet

@@ -1,0 +1,31 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: file:/app/data/comandaflow.db
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET com pelo menos 32 caracteres}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - comanda_data:/app/data
+      - comanda_backups:/app/backups
+    command: sh -c "npm run migrate:prod && node src/server.js"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3000}
+        VITE_FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  comanda_data:
+  comanda_backups:

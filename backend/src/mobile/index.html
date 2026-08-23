@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>ComandaFlow Mobile</title>
+  <style>
+    :root{--bg:#f4f6f8;--surface:#fff;--ink:#0f172a;--muted:#64748b;--line:#dbe3ec;--brand:#2563eb;--ok:#047857;--warn:#b45309;--bad:#be123c}
+    *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    button,input,select,textarea{font:inherit} button{border:0;cursor:pointer} .app{max-width:560px;margin:0 auto;min-height:100vh;padding:14px 14px 88px}
+    .top{position:sticky;top:0;z-index:10;margin:-14px -14px 12px;padding:12px 14px;background:rgba(244,246,248,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+    .brand{display:flex;align-items:center;justify-content:space-between;gap:10px}.brand h1{margin:0;font-size:18px}.brand p{margin:2px 0 0;color:var(--muted);font-size:12px}
+    .logo{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;background:#111827;color:white;font-weight:800}.row{display:flex;align-items:center;gap:10px}.grow{flex:1}
+    .chip{display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:6px 8px;background:#e8eef6;color:#334155;font-size:12px;font-weight:700}.chip.ok{background:#dcfce7;color:#166534}.chip.bad{background:#ffe4e6;color:#9f1239}
+    .panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(15,23,42,.04)} h2{font-size:17px;margin:0 0 10px} h3{font-size:14px;margin:0 0 8px}.muted{color:var(--muted);font-size:13px}
+    label{display:block;margin:10px 0 5px;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase}.input{width:100%;border:1px solid #cbd5e1;border-radius:8px;background:white;padding:12px;color:var(--ink);min-height:46px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border-radius:8px;padding:10px 13px;background:var(--brand);color:white;font-weight:800}.btn.secondary{background:#e2e8f0;color:#0f172a}.btn.ghost{background:transparent;color:#334155;border:1px solid var(--line)}.btn.full{width:100%}
+    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.metric{border:1px solid var(--line);border-radius:8px;background:#fff;padding:10px}.metric b{display:block;font-size:20px}.metric span{font-size:11px;color:var(--muted)}
+    .search{position:relative}.results{display:grid;gap:8px;margin-top:10px}.item{width:100%;text-align:left;border:1px solid var(--line);border-radius:8px;background:white;padding:10px}.item strong{display:block;font-size:14px}.item span{display:block;margin-top:2px;color:var(--muted);font-size:12px}.item.active{border-color:#93c5fd;background:#eff6ff}
+    .tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:white;border-top:1px solid var(--line);display:flex;justify-content:center}.tabs-inner{max-width:560px;width:100%;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:8px}.tab{border-radius:8px;background:white;color:#475569;padding:9px 4px;font-size:12px;font-weight:800}.tab.active{background:#111827;color:white}
+    .hidden{display:none!important}.list{display:grid;gap:8px}.product{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}.qty{display:flex;gap:6px}.qty button{width:38px;height:34px;border-radius:7px;background:#e2e8f0;color:#0f172a;font-weight:900}
+    .cart-line{display:grid;grid-template-columns:1fr auto;gap:8px;border-bottom:1px solid #edf2f7;padding:8px 0}.cart-line:last-child{border-bottom:0}.danger{color:var(--bad)}.oktext{color:var(--ok)}.split{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media (max-width:420px){.grid4{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.brand h1{font-size:16px}}
+  </style>
+</head>
+<body>
+  <div id="app" class="app">
+    <header class="top">
+      <div class="brand">
+        <div class="row"><div class="logo">CF</div><div><h1>ComandaFlow Mobile</h1><p>Garcom</p></div></div>
+        <span id="conn" class="chip bad">offline</span>
+      </div>
+    </header>
+
+    <section id="pairingView" class="panel">
+      <h2>Parear dispositivo</h2>
+      <p class="muted">Digite o codigo gerado no painel Conexao Mobile do computador.</p>
+      <label>Codigo de pareamento</label>
+      <input id="pairCode" class="input" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+      <label>Nome do celular</label>
+      <input id="pairName" class="input" autocomplete="name" placeholder="Celular do garcom" />
+      <button id="pairDevice" class="btn secondary full">Parear celular</button>
+      <p id="pairMsg" class="muted"></p>
+    </section>
+
+    <section id="loginView" class="panel">
+      <h2>Entrar</h2>
+      <p class="muted">Depois de parear o celular, entre com o PIN do garcom para liberar as funcoes.</p>
+      <label>PIN do garcom</label>
+      <input id="pin" class="input" inputmode="numeric" autocomplete="one-time-code" placeholder="1234" />
+      <button id="pinLogin" class="btn full">Entrar com PIN</button>
+      <div style="height:10px"></div>
+      <label>Usuario</label>
+      <input id="email" class="input" autocomplete="username" placeholder="garcom@comanda.local" />
+      <label>Senha</label>
+      <input id="password" class="input" type="password" autocomplete="current-password" />
+      <button id="userLogin" class="btn secondary full">Entrar com usuario</button>
+      <p id="loginMsg" class="muted"></p>
+    </section>
+
+    <main id="mainView" class="hidden">
+      <section data-view="home">
+        <div class="panel">
+          <div class="grid4">
+            <div class="metric"><b id="mOpen">0</b><span>Comandas abertas</span></div>
+            <div class="metric"><b id="mOrders">0</b><span>Pedidos hoje</span></div>
+            <div class="metric"><b id="mClients">0</b><span>Clientes hoje</span></div>
+            <div class="metric"><b id="mBands">0</b><span>Pulseiras ativas</span></div>
+          </div>
+        </div>
+        <div class="panel search">
+          <h2>Busca universal</h2>
+          <input id="searchInput" class="input" placeholder="Cliente, telefone, CPF, pulseira ou comanda" />
+          <div id="searchResults" class="results"></div>
+        </div>
+        <div class="panel">
+          <h2>Fila offline</h2>
+          <p id="queueInfo" class="muted">Nenhum pedido pendente.</p>
+          <button id="syncNow" class="btn ghost full">Sincronizar agora</button>
+        </div>
+      </section>
+
+      <section data-view="open" class="hidden">
+        <div class="panel">
+          <h2>Abrir comanda</h2>
+          <label>Cliente</label>
+          <input id="openName" class="input" placeholder="Nome completo" />
+          <div class="split">
+            <div><label>CPF</label><input id="openCpf" class="input" inputmode="numeric" placeholder="00000000000" /></div>
+            <div><label>Telefone</label><input id="openPhone" class="input" inputmode="tel" placeholder="11999999999" /></div>
+          </div>
+          <label>Pulseira</label>
+          <input id="openBracelet" class="input" placeholder="45871" />
+          <button id="openComanda" class="btn full">Abrir comanda</button>
+          <p id="openMsg" class="muted"></p>
+        </div>
+        <div class="panel">
+          <h3>Pulseiras livres</h3>
+          <div id="freeBracelets" class="list"></div>
+        </div>
+      </section>
+
+      <section data-view="comanda" class="hidden">
+        <div id="comandaDetail" class="panel"><p class="muted">Selecione uma comanda na busca.</p></div>
+      </section>
+
+      <section data-view="products" class="hidden">
+        <div class="panel">
+          <h2>Produtos</h2>
+          <select id="category" class="input">
+            <option value="">Todas categorias</option><option>Bebidas</option><option>Drinks</option><option>Combos</option><option>Porcoes</option><option>VIP</option><option>Outros</option>
+          </select>
+          <div id="products" class="list" style="margin-top:10px"></div>
+        </div>
+        <div class="panel">
+          <h2>Carrinho</h2>
+          <div id="cart"></div>
+          <button id="sendOrder" class="btn full">Enviar Pedido</button>
+          <p id="cartMsg" class="muted"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <nav id="tabs" class="tabs hidden"><div class="tabs-inner">
+    <button class="tab active" data-tab="home">Inicio</button><button class="tab" data-tab="open">Abrir</button><button class="tab" data-tab="comanda">Comanda</button><button class="tab" data-tab="products">Produtos</button>
+  </div></nav>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const state = { token: localStorage.getItem('mobile_token'), user: null, socket: null, syncing: false, deviceSession: JSON.parse(localStorage.getItem('mobile_device_session') || 'null'), selectedComanda: null, cart: JSON.parse(localStorage.getItem('mobile_cart') || '[]'), queue: JSON.parse(localStorage.getItem('mobile_queue') || '[]') };
+    const $ = (id) => document.getElementById(id);
+    const money = (v) => Number(v || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+    const headers = () => ({ 'Content-Type':'application/json', Authorization:`Bearer ${state.token}`, 'X-Device-Name': state.deviceSession?.name || 'mobile-web', 'X-Device-Session': state.deviceSession?.id || '' });
+    const persist = () => { localStorage.setItem('mobile_cart', JSON.stringify(state.cart)); localStorage.setItem('mobile_queue', JSON.stringify(state.queue)); };
+    async function api(path, options={}){ const res = await fetch(path,{...options,headers:{...headers(),...(options.headers||{})}}); const data = await res.json().catch(()=>({})); if(res.status===401){ clearSession('Sessao expirada. Entre novamente com o PIN.'); throw new Error('Sessao expirada'); } if(!res.ok) throw new Error(data.message||'Falha na operacao'); return data; }
+    function setConn(ok,msg){ $('conn').textContent = msg || (ok?'online':'offline'); $('conn').className = `chip ${ok?'ok':'bad'}`; }
+    function renderPairing(){ if(state.deviceSession){ $('pairMsg').innerHTML = `<span class="oktext">Celular pareado: ${state.deviceSession.name || 'Dispositivo movel'}</span>`; $('pairCode').value=''; } }
+    function show(view){ document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('hidden',el.dataset.view!==view)); document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===view)); }
+    function enterApp(){ $('pairingView').classList.add('hidden'); $('loginView').classList.add('hidden'); $('mainView').classList.remove('hidden'); $('tabs').classList.remove('hidden'); }
+    function clearSession(message){ state.token=null; state.user=null; localStorage.removeItem('mobile_token'); if(state.socket) state.socket.disconnect(); $('pairingView').classList.toggle('hidden', Boolean(state.deviceSession)); $('loginView').classList.remove('hidden'); $('mainView').classList.add('hidden'); $('tabs').classList.add('hidden'); $('loginMsg').textContent=message||''; setConn(false,'offline'); renderPairing(); }
+    async function pairDevice(){ $('pairMsg').textContent='Pareando...'; try{ const payload={pairingCode:$('pairCode').value.trim(),name:$('pairName').value.trim()||'Celular do garcom'}; const data=await fetch('/devices/pairing/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(async r=>{const d=await r.json(); if(!r.ok) throw new Error(d.message||'Falha ao parear'); return d}); state.deviceSession=data.session; localStorage.setItem('mobile_device_session',JSON.stringify(state.deviceSession)); renderPairing(); $('pairMsg').innerHTML = `<span class="oktext">Celular pareado. Agora entre com o PIN do garcom.</span>`; $('loginView').scrollIntoView({behavior:'smooth',block:'start'}); $('pin').focus(); }catch(e){ $('pairMsg').textContent=e.message; } }
+    async function login(payload){ $('loginMsg').textContent='Entrando...'; try{ const data=await fetch('/mobile/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(async r=>{const d=await r.json(); if(!r.ok) throw new Error(d.message); return d}); state.token=data.token; state.user=data.user; localStorage.setItem('mobile_token',state.token); enterApp(); connectSocket(); await boot(); }catch(e){ $('loginMsg').textContent=e.message; } }
+    function connectSocket(){ if(!state.token||!window.io)return; state.socket=io('/',{auth:{token:state.token,room:'mobile'},reconnectionDelay:500,reconnectionDelayMax:3000}); state.socket.on('connect',()=>{setConn(true,'online'); state.socket.emit('mobile:join',{room:'mobile'}); syncQueue();}); state.socket.on('disconnect',()=>setConn(false,'reconectando')); state.socket.on('connect_error',()=>setConn(false,'offline')); state.socket.on('comanda:atualizada',({comanda})=>{ if(state.selectedComanda&&comanda.id===state.selectedComanda.id){state.selectedComanda=comanda; renderComanda();} loadDashboard(); }); state.socket.on('pedido:confirmado',({comanda})=>{ if(comanda){state.selectedComanda=comanda; renderComanda();} loadDashboard(); }); }
+    async function boot(){ await Promise.all([loadDashboard(), loadProducts(), loadFreeBracelets()]); renderCart(); updateQueue(); }
+    async function loadDashboard(){ try{ const d=await api('/mobile/dashboard'); $('mOpen').textContent=d.dashboard.openComandas; $('mOrders').textContent=d.dashboard.pedidosHoje; $('mClients').textContent=d.dashboard.clientesAtendidosHoje; $('mBands').textContent=d.dashboard.pulseirasAtivas; }catch(e){} }
+    async function search(){ const q=$('searchInput').value.trim(); if(q.length<2){$('searchResults').innerHTML='';return;} try{ const d=await api('/mobile/search?q='+encodeURIComponent(q)); const blocks=[]; d.clients.forEach(c=>blocks.push(`<button class="item" data-client="${c.id}" data-name="${c.name}" data-cpf="${c.cpf}" data-phone="${c.phone}"><strong>${c.name}</strong><span>CPF ${c.cpf} · ${c.phone}</span></button>`)); d.bracelets.forEach(b=>blocks.push(`<button class="item" data-bracelet="${b.number}"><strong>Pulseira #${b.number}</strong><span>${b.status}</span></button>`)); d.comandas.forEach(c=>blocks.push(`<button class="item" data-comanda="${c.id}"><strong>Comanda ${c.id.slice(0,8)}</strong><span>${c.clienteNome} · Pulseira #${c.bracelet?.number||''}</span></button>`)); $('searchResults').innerHTML=blocks.join('')||'<p class="muted">Nada encontrado.</p>'; }catch(e){ $('searchResults').innerHTML=`<p class="danger">${e.message}</p>`; } }
+    async function loadFreeBracelets(){ try{ const d=await api('/mobile/bracelets?status=livre'); $('freeBracelets').innerHTML=d.bracelets.slice(0,8).map(b=>`<button class="item" data-bracelet="${b.number}"><strong>#${b.number}</strong><span>Disponivel</span></button>`).join('')||'<p class="muted">Sem pulseiras livres.</p>'; }catch(e){} }
+    async function openComanda(){ $('openMsg').textContent='Abrindo...'; try{ const body={number:$('openBracelet').value.trim(),clienteNome:$('openName').value.trim(),clienteCpf:$('openCpf').value,clienteTelefone:$('openPhone').value}; const d=await api('/mobile/comandas/open',{method:'POST',body:JSON.stringify(body)}); state.selectedComanda=d.comanda; $('openMsg').textContent='Comanda aberta.'; show('comanda'); renderComanda(); await boot(); }catch(e){ $('openMsg').textContent=e.message; } }
+    function renderComanda(){ const c=state.selectedComanda; if(!c){$('comandaDetail').innerHTML='<p class="muted">Selecione uma comanda na busca.</p>';return;} const total=(c.pedidos||[]).reduce((s,p)=>s+Number(p.subtotal||0),0); $('comandaDetail').innerHTML=`<h2>${c.clienteNome}</h2><p class="muted">${c.clienteTelefone||''} · Pulseira #${c.bracelet?.number||''}</p><p class="muted">Aberta em ${new Date(c.openedAt).toLocaleTimeString('pt-BR')}</p><div class="panel" style="margin:10px 0 0;padding:10px;background:#f8fafc"><strong>Parcial ${money(total)}</strong><p class="muted">Saldo disponivel: consultar regra do caixa</p></div><h3 style="margin-top:12px">Itens consumidos</h3>${(c.pedidos||[]).map(p=>`<div class="cart-line"><div><strong>${p.nome}</strong><span class="muted">${p.quantidade} x ${money(p.valorUnitario)}</span></div><strong>${money(p.subtotal)}</strong></div>`).join('')||'<p class="muted">Nenhum item.</p>'}<label>Observacoes</label><textarea class="input" rows="3" placeholder="Observacoes da comanda"></textarea>`; }
+    async function loadProducts(){ try{ const cat=$('category').value; const d=await api('/mobile/products'+(cat?'?categoria='+encodeURIComponent(cat):'')); $('products').innerHTML=d.products.map(p=>`<div class="item product"><div><strong>${p.nome}</strong><span>${p.categoria} · ${money(p.preco)} · Estoque ${p.estoque}</span></div><div class="qty"><button data-add="${p.id}" data-q="1">+1</button><button data-add="${p.id}" data-q="2">+2</button><button data-add="${p.id}" data-q="5">+5</button></div></div>`).join(''); window.products=d.products; }catch(e){ $('products').innerHTML=`<p class="danger">${e.message}</p>`; } }
+    function addProduct(id,q){ const p=(window.products||[]).find(x=>x.id===id); if(!p)return; const line=state.cart.find(x=>x.produtoId===id); if(line) line.quantidade+=q; else state.cart.push({produtoId:id,nome:p.nome,quantidade:q,valorUnitario:Number(p.preco)}); persist(); renderCart(); }
+    function renderCart(){ $('cart').innerHTML=state.cart.map((i,idx)=>`<div class="cart-line"><div><strong>${i.nome}</strong><span class="muted">${i.quantidade} x ${money(i.valorUnitario)}</span></div><button class="btn ghost" data-rm="${idx}">Remover</button></div>`).join('')||'<p class="muted">Carrinho vazio.</p>'; }
+    async function sendOrder(){ if(!state.selectedComanda){$('cartMsg').textContent='Selecione uma comanda antes.';return;} if(!state.cart.length){$('cartMsg').textContent='Carrinho vazio.';return;} const jobs=state.cart.map(i=>({clientRequestId:`${Date.now()}-${Math.random().toString(16).slice(2)}`,comandaId:state.selectedComanda.id,produtoId:i.produtoId,quantidade:i.quantidade,nome:i.nome,valorUnitario:i.valorUnitario})); $('cartMsg').textContent='Enviando...'; const failed=[]; for(let index=0; index<jobs.length; index+=1){ try{ await api('/mobile/pedidos',{method:'POST',body:JSON.stringify(jobs[index])}); }catch(e){ failed.push(...jobs.slice(index)); break; } } state.cart=[]; if(failed.length){ state.queue.push(...failed); $('cartMsg').textContent='Conexao perdida. Apenas itens nao confirmados foram salvos para sincronizar.'; }else{ $('cartMsg').textContent='Pedido enviado.'; } persist(); renderCart(); updateQueue(); try{ const d=await api('/mobile/comandas/'+state.selectedComanda.id); state.selectedComanda=d.comanda; renderComanda(); }catch(e){} loadDashboard(); }
+    async function syncQueue(){ if(!state.queue.length||!state.token||state.syncing)return; state.syncing=true; updateQueue('Sincronizando pedidos pendentes...'); const pending=[...state.queue]; const failed=[]; for(const job of pending){ try{ await api('/mobile/pedidos',{method:'POST',body:JSON.stringify(job)}); }catch(e){ failed.push(job); } } state.queue=failed; state.syncing=false; persist(); updateQueue(); if(!state.queue.length&&state.selectedComanda){ try{ const d=await api('/mobile/comandas/'+state.selectedComanda.id); state.selectedComanda=d.comanda; renderComanda(); }catch(e){} } loadDashboard(); }
+    function updateQueue(message){ $('queueInfo').textContent=message || (state.queue.length?`${state.queue.length} pedido(s) pendente(s).`:'Nenhum pedido pendente.'); }
+    let timer; $('searchInput').addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(search,180)}); $('pairDevice').onclick=pairDevice; $('pinLogin').onclick=()=>login({pin:$('pin').value}); $('userLogin').onclick=()=>login({email:$('email').value,password:$('password').value}); $('openComanda').onclick=openComanda; $('category').onchange=loadProducts; $('sendOrder').onclick=sendOrder; $('syncNow').onclick=syncQueue;
+    document.body.addEventListener('click',async(e)=>{ const t=e.target.closest('button'); if(!t)return; if(t.dataset.tab)show(t.dataset.tab); if(t.dataset.bracelet)$('openBracelet').value=t.dataset.bracelet; if(t.dataset.client){$('openName').value=t.dataset.name;$('openCpf').value=t.dataset.cpf;$('openPhone').value=t.dataset.phone;show('open')} if(t.dataset.comanda){const d=await api('/mobile/comandas/'+t.dataset.comanda);state.selectedComanda=d.comanda;renderComanda();show('comanda')} if(t.dataset.add)addProduct(t.dataset.add,Number(t.dataset.q)); if(t.dataset.rm){state.cart.splice(Number(t.dataset.rm),1);persist();renderCart();} });
+    renderPairing();
+    if(state.token){ enterApp(); connectSocket(); boot(); }
+  </script>
+</body>
+</html>

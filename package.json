@@ -1,0 +1,105 @@
+{
+  "name": "comanda-full",
+  "version": "2.3.1",
+  "description": "ComandaFlow — Sistema de Gestão para Restaurantes e Bares by Orqium",
+  "private": true,
+  "main": "electron-main.js",
+  "author": {
+    "name": "Orqium",
+    "email": "contato@orqium.com"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "dev": "cross-env PORT=3002 VITE_API_URL=http://localhost:3002 VITE_FRONTEND_URL=http://localhost:5173 concurrently \"cross-env PORT=3002 npm --prefix backend run dev\" \"cross-env VITE_API_URL=http://localhost:3002 VITE_FRONTEND_URL=http://localhost:5173 npm --prefix frontend run dev\"",
+    "backend": "cross-env PORT=3002 npm --prefix backend run dev",
+    "frontend": "cross-env VITE_API_URL=http://localhost:3002 VITE_FRONTEND_URL=http://localhost:5173 npm --prefix frontend run dev",
+    "electron:dev": "concurrently \"cross-env PORT=3002 npm --prefix backend run dev\" \"cross-env VITE_API_URL=http://localhost:3002 VITE_FRONTEND_URL=http://localhost:5173 npm --prefix frontend run dev\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
+    "build:frontend": "cross-env VITE_API_URL=http://localhost:3002 npm --prefix frontend run build",
+    "test": "npm --prefix backend test && npm run test:subscriptions && npm run build:frontend",
+    "prepare:licenses": "node scripts/build/ensure-license-keys.js",
+    "test:subscriptions": "node scripts/tests/test-subscription-flow.js",
+    "test:package:client": "node scripts/tests/validate-packaged-app.js client",
+    "test:package:manager": "node scripts/tests/validate-packaged-app.js manager",
+    "test:package:online": "node scripts/tests/validate-online-packaged-flow.js",
+    "prepare:desktop-runtime": "npm --prefix backend run prisma:generate && node scripts/build/prepare-desktop-runtime.js",
+    "prepare:production-dependencies": "node scripts/build/prepare-production-dependencies.js",
+    "build:app": "npm run build:client",
+    "build:client": "npm run build:frontend && npm run prepare:licenses && npm run prepare:desktop-runtime && npm run prepare:production-dependencies && electron-builder --win",
+    "build:manager": "npm run build:frontend && npm run prepare:licenses && npm run prepare:desktop-runtime && npm run prepare:production-dependencies && electron-builder --win --config electron-builder.manager.js",
+    "release": "npm run release:windows",
+    "release:windows": "npm run build:client && npm run build:manager",
+    "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0",
+    "cross-env": "^7.0.3",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
+    "wait-on": "^7.0.1"
+  },
+  "build": {
+    "appId": "com.orqium.comandaflow",
+    "productName": "ComandaFlow",
+    "copyright": "© 2024-2026 Orqium. Todos os direitos reservados.",
+    "asar": true,
+    "compression": "normal",
+    "icon": "build/icon",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist/client"
+    },
+    "files": [
+      "electron-main.js",
+      "electron-manager-main.js",
+      "package.json",
+      "backend/**/*",
+      "frontend/dist/**/*",
+      "build/**/*",
+      "!backend/.env",
+      "!backend/.env.*",
+      "!backend/node_modules/**/*",
+      "!backend/dev.db",
+      "!backend/test/**/*",
+      "!backend/frontend/**/*",
+      "!backend/backend/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": ".desktop-runtime/backend/node_modules",
+        "to": "app/backend/node_modules"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "ComandaFlow-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "allowElevation": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ComandaFlow",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerHeader": "frontend/public/logo-icon.png",
+      "license": null,
+      "language": "1046",
+      "include": null,
+      "runAfterFinish": true,
+      "menuCategory": "Orqium"
+    }
+  }
+}

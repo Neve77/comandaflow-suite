@@ -1,0 +1,42 @@
+# Dependências e caches
+node_modules/
+.npm/
+.cache/
+.parcel-cache/
+.vite/
+
+# Ambientes e segredos
+.env
+.env.*
+!.env.example
+!**/.env.example
+.secrets/
+certs/
+
+# Dados locais e temporários
+*.db
+*.db-*
+*.sqlite
+backups/
+logs/
+*.log
+*.pid
+*.pid.lock
+coverage/
+.nyc_output/
+.desktop-runtime/
+
+# Artefatos
+dist/
+*.tgz
+build/*
+!build/icon.ico
+!build/license-public.pem
+
+# Editor e sistema operacional
+.vscode/
+.idea/
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db

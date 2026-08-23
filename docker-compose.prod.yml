@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: file:/app/data/comandaflow.db
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET com pelo menos 32 caracteres}
+      FRONTEND_URL: ${FRONTEND_URL:?Defina a URL publica do frontend}
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - comanda_data_prod:/app/data
+      - comanda_backups_prod:/app/backups
+    command: sh -c "npm run migrate:prod && node src/server.js"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Defina a URL publica da API}
+        VITE_FRONTEND_URL: ${FRONTEND_URL:?Defina a URL publica do frontend}
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  comanda_data_prod:
+  comanda_backups_prod:

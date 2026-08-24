@@ -108,6 +108,14 @@ export function SuspensionModal({ subscriber, defaultMessage, onClose, onSuspend
   </Modal>;
 }
 
+export function CancellationModal({ subscriber, onClose, onCancel }) {
+  const [message, setMessage] = useState('Sua conta foi cancelada. Entre em contato com o atendimento para mais informações.');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const submit = async (event) => { event.preventDefault(); setSaving(true); setError(''); try { await onCancel({ message }); } catch (cancelError) { setError(cancelError.message); } finally { setSaving(false); } };
+  return <Modal title="Cancelar conta" subtitle={`O acesso de ${subscriber.businessName} será encerrado imediatamente.`} onClose={onClose}><form className="space-y-4 p-5" onSubmit={submit}><div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">Esta ação cancela a conta, interrompe a cobrança recorrente e bloqueia todas as instalações. O cadastro e o histórico financeiro serão preservados.</div><Field label="Mensagem exibida ao cliente *"><textarea className="input-field min-h-28" minLength={3} maxLength={600} value={message} onChange={(event) => setMessage(event.target.value)} required /></Field>{error && <div className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}<div className="flex justify-end gap-3 border-t border-slate-100 pt-4"><button type="button" className="btn-secondary" onClick={onClose}>Voltar</button><button className="btn-primary bg-rose-600 hover:bg-rose-700" disabled={saving}>{saving ? 'Cancelando...' : 'Confirmar cancelamento'}</button></div></form></Modal>;
+}
+
 export function MessageModal({ data, onClose, onCopy }) {
   return <Modal title="Mensagem pronta" subtitle={`Suspensao aplicada para ${data.customer.businessName}.`} onClose={onClose}>
     <div className="space-y-4 p-5">
@@ -133,6 +141,8 @@ export function ServerSettingsModal({ initial, onClose, onSave }) {
       <div className="sm:col-span-2"><Field label="Endereco publico fixo *"><input type="url" className="input-field" placeholder="https://assinaturas.seudominio.com" value={form.publicServerUrl} onChange={set('publicServerUrl')} required /></Field></div>
       <Field label="Tolerancia sem internet (horas)"><input type="number" min="1" max="168" className="input-field" value={form.offlineGraceHours} onChange={set('offlineGraceHours')} required /></Field>
       <Field label="Verificacao de seguranca (minutos)"><input type="number" min="1" max="60" className="input-field" value={form.syncIntervalMinutes} onChange={set('syncIntervalMinutes')} required /></Field>
+      <Field label="Tolerância após vencimento (dias)"><input type="number" min="0" max="90" className="input-field" value={form.paymentGraceDays} onChange={set('paymentGraceDays')} required /></Field>
+      <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"><input type="checkbox" className="mt-1" checked={Boolean(form.automaticSuspensionEnabled)} onChange={(event) => setForm((value) => ({ ...value, automaticSuspensionEnabled: event.target.checked }))} /><span><strong>Suspensão automática por inadimplência</strong><br /><span className="text-xs">Bloqueia o cliente quando uma cobrança ultrapassar o período de tolerância.</span></span></label>
       <div className="sm:col-span-2"><Field label="Mensagem padrao de suspensao"><textarea className="input-field min-h-24" maxLength="600" value={form.defaultSuspensionMessage} onChange={set('defaultSuspensionMessage')} required /></Field></div>
       <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Cole aqui o endereco <strong>HTTPS publico</strong>, como https://assinaturas.seudominio.com. Dentro do servico de tunel, ele deve apontar para <strong>http://127.0.0.1:3012</strong>. Nunca cole 127.0.0.1 neste campo.</div>
       {error && <div className="sm:col-span-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
@@ -141,29 +151,33 @@ export function ServerSettingsModal({ initial, onClose, onSave }) {
   </Modal>;
 }
 
-export function PublishUpdateModal({ current, onClose, onPublish }) {
-  const nextVersion = current?.version
-    ? current.version.split('.').map(Number).map((part, index, list) => index === list.length - 1 ? part + 1 : part).join('.')
+export function PublishUpdateModal({ current, managerCurrent, initialProduct = 'client', subscribers, onClose, onPublish }) {
+  const suggestVersion = (manifest) => manifest?.version
+    ? manifest.version.split('.').map(Number).map((part, index, list) => index === list.length - 1 ? part + 1 : part).join('.')
     : '';
-  const [form, setForm] = useState({ version: nextVersion, releaseNotes: '', mandatory: false, file: null });
+  const [form, setForm] = useState({ product: initialProduct, version: suggestVersion(initialProduct === 'manager' ? managerCurrent : current), releaseNotes: '', mandatory: false, file: null, rollout: initialProduct === 'manager' ? 'all' : 'pilot', pilotSubscriberIds: [] });
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const submit = async (event) => {
     event.preventDefault(); setSaving(true); setError(''); setProgress(0);
-    if (!form.file) { setError('Selecione o instalador .exe do ComandaFlow.'); setSaving(false); return; }
+    if (!form.file) { setError('Selecione o instalador .exe correspondente.'); setSaving(false); return; }
+    if (form.product === 'client' && form.rollout === 'pilot' && !form.pilotSubscriberIds.length) { setError('Selecione pelo menos um cliente de teste.'); setSaving(false); return; }
     try { await onPublish(form, setProgress); } catch (publishError) { setError(publishError.message); } finally { setSaving(false); }
   };
-  return <Modal title="Publicar atualizacao" subtitle="Envie o novo instalador para todos os restaurantes com assinatura online." onClose={onClose}>
+  return <Modal title="Publicar atualização" subtitle="Envie separadamente o instalador do Gestor ou dos restaurantes." onClose={onClose}>
     <form onSubmit={submit} className="grid gap-4 p-5 sm:grid-cols-2">
-      <Field label="Nova versao *"><input className="input-field" pattern="\d+\.\d+\.\d+" placeholder="2.4.0" value={form.version} onChange={(event) => setForm((value) => ({ ...value, version: event.target.value }))} required /></Field>
+      <Field label="Aplicativo *"><select className="input-field" value={form.product} onChange={(event) => { const product = event.target.value; setForm((value) => ({ ...value, product, version: suggestVersion(product === 'manager' ? managerCurrent : current), file: null, rollout: product === 'client' ? value.rollout : 'all', pilotSubscriberIds: product === 'client' ? value.pilotSubscriberIds : [] })); }}><option value="client">Restaurantes</option><option value="manager">Gestor</option></select></Field>
+      <Field label="Nova versão *"><input className="input-field" pattern="\d+\.\d+\.\d+" placeholder="2.4.0" value={form.version} onChange={(event) => setForm((value) => ({ ...value, version: event.target.value }))} required /></Field>
       <Field label="Instalador Windows *"><input type="file" accept=".exe,application/vnd.microsoft.portable-executable" className="input-field text-xs" onChange={(event) => setForm((value) => ({ ...value, file: event.target.files?.[0] || null }))} required /></Field>
-      <div className="sm:col-span-2"><Field label="O que mudou nesta versao *"><textarea className="input-field min-h-28" maxLength="4000" placeholder={'Exemplo:\n- Nova tela de pedidos\n- Correcao na impressao'} value={form.releaseNotes} onChange={(event) => setForm((value) => ({ ...value, releaseNotes: event.target.value }))} required /></Field></div>
-      <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"><input type="checkbox" className="mt-1" checked={form.mandatory} onChange={(event) => setForm((value) => ({ ...value, mandatory: event.target.checked }))} /><span><strong>Atualizacao obrigatoria</strong><br /><span className="text-xs">O restaurante nao podera fechar o aviso sem instalar.</span></span></label>
-      <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">Selecione somente o instalador de clientes <strong>ComandaFlow-Setup-versao.exe</strong>. O Gestor precisa ficar aberto durante o download dos restaurantes.</div>
+      <div className="sm:col-span-2"><Field label="O que mudou nesta versão *"><textarea className="input-field min-h-28" maxLength="4000" placeholder={'Exemplo:\n- Nova tela de pedidos\n- Correção na impressão'} value={form.releaseNotes} onChange={(event) => setForm((value) => ({ ...value, releaseNotes: event.target.value }))} required /></Field></div>
+      {form.product === 'client' && <Field label="Liberação inicial"><select className="input-field" value={form.rollout} onChange={(event) => setForm((value) => ({ ...value, rollout: event.target.value }))}><option value="pilot">Somente clientes de teste</option><option value="all">Todos os clientes</option></select></Field>}
+      {form.product === 'client' && form.rollout === 'pilot' && <div className="sm:col-span-2"><Field label="Clientes de teste *"><select multiple className="input-field min-h-28" value={form.pilotSubscriberIds} onChange={(event) => setForm((value) => ({ ...value, pilotSubscriberIds: [...event.target.selectedOptions].map((option) => option.value) }))}>{subscribers.filter((item) => item.status === 'ativo').map((item) => <option key={item.id} value={item.id}>{item.businessName}</option>)}</select></Field><p className="mt-1 text-xs text-slate-500">Use Ctrl para selecionar mais de um cliente.</p></div>}
+      {form.product === 'client' && <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"><input type="checkbox" className="mt-1" checked={form.mandatory} onChange={(event) => setForm((value) => ({ ...value, mandatory: event.target.checked }))} /><span><strong>Atualização obrigatória</strong><br /><span className="text-xs">O restaurante não poderá fechar o aviso sem instalar.</span></span></label>}
+      <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">Selecione <strong>{form.product === 'manager' ? `ComandaFlow-Gestor-Setup-${form.version || 'versão'}.exe` : `ComandaFlow-Setup-${form.version || 'versão'}.exe`}</strong>. {form.product === 'manager' ? 'Depois da publicação, use o botão Instalar e reiniciar no cartão do Gestor.' : 'O Gestor precisa permanecer aberto durante o download dos restaurantes.'}</div>
       {saving && <div className="sm:col-span-2"><div className="mb-2 flex justify-between text-xs font-bold text-slate-600"><span>Enviando e verificando instalador...</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div></div>}
       {error && <div className="sm:col-span-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-      <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button><button className="btn-primary bg-blue-600 hover:bg-blue-700" disabled={saving}><UploadCloud size={17} />{saving ? 'Publicando...' : 'Publicar atualizacao'}</button></div>
+      <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button><button className="btn-primary bg-blue-600 hover:bg-blue-700" disabled={saving}><UploadCloud size={17} />{saving ? 'Publicando...' : 'Publicar atualização'}</button></div>
     </form>
   </Modal>;
 }

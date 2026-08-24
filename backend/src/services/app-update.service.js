@@ -7,7 +7,14 @@ const { pipeline } = require('stream/promises');
 const prisma = require('../infra/prisma/client');
 const licenseService = require('./license.service');
 
-const PUBLISHED_KEY = 'publishedClientUpdate';
+const PUBLISHED_KEYS = {
+  client: 'publishedClientUpdate',
+  manager: 'publishedManagerUpdate',
+};
+const PRODUCTS = {
+  client: { manifestName: 'ComandaFlow', filePrefix: 'ComandaFlow-Setup' },
+  manager: { manifestName: 'ComandaFlow Gestor', filePrefix: 'ComandaFlow-Gestor-Setup' },
+};
 const MAX_UPDATE_BYTES = 500 * 1024 * 1024;
 const pendingUploads = new Map();
 let checkTimer = null;
@@ -62,21 +69,28 @@ const hashFile = async (filePath) => {
   return hash.digest('hex');
 };
 
-const readPublished = async () => {
-  const record = await prisma.systemSetting.findUnique({ where: { key: PUBLISHED_KEY } });
+const readPublished = async (product = 'client') => {
+  const record = await prisma.systemSetting.findUnique({ where: { key: PUBLISHED_KEYS[product] } });
   if (!record) return null;
   try { return JSON.parse(record.value); } catch { return null; }
 };
 
-const startPublication = ({ version, releaseNotes, mandatory, fileName, size }) => {
+const startPublication = ({ product = 'client', version, releaseNotes, mandatory, fileName, size, rollout, pilotSubscriberIds }) => {
+  if (!PRODUCTS[product]) throw Object.assign(new Error('Aplicativo de destino inválido.'), { status: 400 });
+  if (product === 'manager' && compareVersions(version, resolveCurrentVersion()) <= 0) {
+    throw Object.assign(new Error(`A versão do Gestor deve ser superior à ${resolveCurrentVersion()}.`), { status: 400 });
+  }
   const upload = {
     token: crypto.randomUUID(),
     id: crypto.randomUUID(),
+    product,
     version: normalizeVersion(version),
     releaseNotes: String(releaseNotes || '').trim(),
     mandatory: Boolean(mandatory),
     fileName: path.basename(String(fileName || 'ComandaFlow-Setup.exe')),
     size: Number(size),
+    rollout: product === 'client' ? rollout || 'all' : 'local',
+    pilotSubscriberIds: product === 'client' ? [...new Set(pilotSubscriberIds || [])] : [],
     expiresAt: Date.now() + 30 * 60 * 1000,
   };
   pendingUploads.set(upload.token, upload);
@@ -94,8 +108,9 @@ const receivePublication = async (request, token) => {
   pendingUploads.delete(token);
 
   const updatesDir = getUpdatesDir();
+  const product = PRODUCTS[upload.product];
   const temporaryPath = path.join(updatesDir, `${upload.id}.upload`);
-  const storageName = `ComandaFlow-Setup-${upload.version}-${upload.id.slice(0, 8)}.exe`;
+  const storageName = `${product.filePrefix}-${upload.version}-${upload.id.slice(0, 8)}.exe`;
   const finalPath = path.join(updatesDir, storageName);
   let received = 0;
   let firstBytes = Buffer.alloc(0);
@@ -122,9 +137,9 @@ const receivePublication = async (request, token) => {
     const publishedAt = new Date().toISOString();
     const manifest = {
       id: upload.id,
-      product: 'ComandaFlow',
+      product: product.manifestName,
       version: upload.version,
-      fileName: `ComandaFlow-Setup-${upload.version}.exe`,
+      fileName: `${product.filePrefix}-${upload.version}.exe`,
       size: received,
       sha256,
       releaseNotes: upload.releaseNotes,
@@ -132,21 +147,31 @@ const receivePublication = async (request, token) => {
       publishedAt,
     };
     const signature = licenseService.signUpdateManifest(manifest);
-    const previous = await readPublished();
-    const published = { manifest, signature, storageName };
+    const previous = await readPublished(upload.product);
+    const published = {
+      manifest,
+      signature,
+      storageName,
+      control: {
+        state: 'active',
+        audience: upload.rollout,
+        pilotSubscriberIds: upload.pilotSubscriberIds,
+        updatedAt: publishedAt,
+      },
+    };
     await prisma.systemSetting.upsert({
-      where: { key: PUBLISHED_KEY },
-      create: { key: PUBLISHED_KEY, value: JSON.stringify(published) },
+      where: { key: PUBLISHED_KEYS[upload.product] },
+      create: { key: PUBLISHED_KEYS[upload.product], value: JSON.stringify(published) },
       update: { value: JSON.stringify(published) },
     });
 
     if (previous?.storageName && previous.storageName !== storageName) {
       const previousPath = path.resolve(updatesDir, previous.storageName);
       if (previousPath.startsWith(`${path.resolve(updatesDir)}${path.sep}`)) {
-        fs.rmSync(previousPath, { force: true });
+        safeRemoveUpdateFile(previousPath);
       }
     }
-    return { manifest, signature };
+    return { manifest, signature, product: upload.product };
   } catch (error) {
     fs.rmSync(temporaryPath, { force: true });
     fs.rmSync(finalPath, { force: true });
@@ -155,8 +180,8 @@ const receivePublication = async (request, token) => {
   }
 };
 
-const getPublished = async () => {
-  const published = await readPublished();
+const getPublished = async (product = 'client') => {
+  const published = await readPublished(product);
   if (!published) return null;
   const filePath = path.resolve(getUpdatesDir(), published.storageName);
   if (!filePath.startsWith(`${path.resolve(getUpdatesDir())}${path.sep}`) || !fs.existsSync(filePath)) {
@@ -165,9 +190,18 @@ const getPublished = async () => {
   return { ...published, filePath };
 };
 
-const getLatest = async (currentVersion) => {
-  const published = await getPublished();
-  if (!published) return { available: false };
+const isEligible = async (published, licenseId) => {
+  const control = published.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] };
+  if (control.state !== 'active') return false;
+  if (control.audience !== 'pilot') return true;
+  if (!licenseId) return false;
+  const subscription = await prisma.subscription.findUnique({ where: { id: licenseId }, select: { subscriberId: true } });
+  return Boolean(subscription && control.pilotSubscriberIds?.includes(subscription.subscriberId));
+};
+
+const getLatest = async (currentVersion, licenseId) => {
+  const published = await getPublished('client');
+  if (!published || !(await isEligible(published, licenseId))) return { available: false };
   return {
     available: compareVersions(published.manifest.version, currentVersion) > 0,
     manifest: published.manifest,
@@ -175,10 +209,29 @@ const getLatest = async (currentVersion) => {
   };
 };
 
-const getPublishedFile = async (id) => {
-  const published = await getPublished();
-  if (!published || published.manifest.id !== id) return null;
+const getPublishedFile = async (id, licenseId) => {
+  const published = await getPublished('client');
+  if (!published || published.manifest.id !== id || !(await isEligible(published, licenseId))) return null;
   return published;
+};
+
+const controlPublication = async ({ action, pilotSubscriberIds }) => {
+  const published = await readPublished('client');
+  if (!published) throw Object.assign(new Error('Nenhuma atualização publicada.'), { status: 404 });
+  const control = published.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] };
+  if (action === 'pause') control.state = 'paused';
+  if (action === 'resume') control.state = 'active';
+  if (action === 'withdraw') control.state = 'withdrawn';
+  if (action === 'promote') { control.state = 'active'; control.audience = 'all'; }
+  if (action === 'pilot') {
+    control.state = 'active';
+    control.audience = 'pilot';
+    control.pilotSubscriberIds = [...new Set(pilotSubscriberIds || [])];
+  }
+  control.updatedAt = new Date().toISOString();
+  published.control = control;
+  await prisma.systemSetting.update({ where: { key: PUBLISHED_KEYS.client }, data: { value: JSON.stringify(published) } });
+  return { manifest: published.manifest, signature: published.signature, control };
 };
 
 const publicClientState = () => {
@@ -218,6 +271,85 @@ const loadDownloadedState = () => {
   }
 };
 
+const safeRemoveUpdateFile = (candidate) => {
+  if (!candidate) return false;
+  const updatesDir = path.resolve(getUpdatesDir());
+  const resolved = path.resolve(candidate);
+  if (!resolved.startsWith(`${updatesDir}${path.sep}`)) return false;
+  try {
+    fs.rmSync(resolved, { force: true });
+    return true;
+  } catch (error) {
+    console.warn(`[UPDATE] Não foi possível remover ${path.basename(resolved)}: ${error.message}`);
+    return false;
+  }
+};
+
+const cleanupUpdateArtifacts = async () => {
+  const updatesDir = getUpdatesDir();
+  const keep = new Set();
+  const clientPublished = await getPublished('client');
+  if (clientPublished?.storageName) keep.add(clientPublished.storageName);
+
+  const managerPublished = await getPublished('manager');
+  if (managerPublished) {
+    if (compareVersions(managerPublished.manifest.version, resolveCurrentVersion()) <= 0) {
+      if (safeRemoveUpdateFile(managerPublished.filePath)) {
+        await prisma.systemSetting.deleteMany({ where: { key: PUBLISHED_KEYS.manager } });
+      }
+    } else {
+      keep.add(managerPublished.storageName);
+    }
+  }
+  if (clientState.status === 'ready' && clientState.downloadPath) {
+    keep.add(path.basename(clientState.downloadPath));
+  }
+
+  for (const entry of fs.readdirSync(updatesDir, { withFileTypes: true })) {
+    if (!entry.isFile() || keep.has(entry.name) || entry.name === 'downloaded-update.json') continue;
+    if (/^(ComandaFlow(?:-Gestor)?-Setup-.*\.exe|[0-9a-f-]+\.(?:part|upload))$/i.test(entry.name)) {
+      safeRemoveUpdateFile(path.join(updatesDir, entry.name));
+    }
+  }
+};
+
+const getManagerUpdateStatus = async () => {
+  const published = await getPublished('manager');
+  if (!published) return { status: 'idle', available: false, currentVersion: resolveCurrentVersion() };
+  const available = compareVersions(published.manifest.version, resolveCurrentVersion()) > 0;
+  return {
+    status: available ? 'ready' : 'upToDate',
+    available,
+    currentVersion: resolveCurrentVersion(),
+    manifest: published.manifest,
+  };
+};
+
+const installManagerUpdate = async () => {
+  if (!isManagerMode()) throw Object.assign(new Error('Esta operação existe somente no Gestor.'), { status: 403 });
+  const published = await getPublished('manager');
+  if (!published || compareVersions(published.manifest.version, resolveCurrentVersion()) <= 0) {
+    throw Object.assign(new Error('Nenhuma atualização nova do Gestor está pronta.'), { status: 400 });
+  }
+  if (!licenseService.verifyUpdateManifest(published.manifest, published.signature)) {
+    throw Object.assign(new Error('A assinatura da atualização do Gestor é inválida.'), { status: 400 });
+  }
+  if (await hashFile(published.filePath) !== published.manifest.sha256) {
+    throw Object.assign(new Error('O instalador do Gestor foi alterado ou está corrompido.'), { status: 400 });
+  }
+  const child = spawn(published.filePath, [], { detached: true, stdio: 'ignore', windowsHide: false });
+  await new Promise((resolve, reject) => { child.once('spawn', resolve); child.once('error', reject); });
+  child.unref();
+  setTimeout(() => {
+    try {
+      const electron = require('electron');
+      if (electron?.app?.quit) electron.app.quit();
+      else process.exit(0);
+    } catch { process.exit(0); }
+  }, 1200);
+  return { status: 'installing', manifest: published.manifest };
+};
+
 const getOnlineLicense = () => {
   const record = licenseService.getActiveLicenseRecord();
   if (!record?.licenseKey) return null;
@@ -234,15 +366,15 @@ const checkNow = async () => {
   }
 
   try {
-    const response = await fetch(`${onlineLicense.serverUrl}/updates/latest?currentVersion=${encodeURIComponent(clientState.currentVersion)}`, {
+    const response = await fetch(`${onlineLicense.serverUrl}/updates/latest?currentVersion=${encodeURIComponent(clientState.currentVersion)}&licenseId=${encodeURIComponent(onlineLicense.licenseId)}`, {
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) throw new Error(`Servidor respondeu ${response.status}.`);
     const result = await response.json();
     if (!result.available) {
-      if (clientState.status !== 'ready') {
-        clientState = { status: 'upToDate', currentVersion: clientState.currentVersion, checkedAt: new Date().toISOString() };
-      }
+      if (clientState.downloadPath) fs.rmSync(clientState.downloadPath, { force: true });
+      fs.rmSync(downloadedStatePath(), { force: true });
+      clientState = { status: 'upToDate', currentVersion: clientState.currentVersion, checkedAt: new Date().toISOString() };
       return publicClientState();
     }
     if (!result.manifest || !result.signature || !licenseService.verifyUpdateManifest(result.manifest, result.signature)) {
@@ -277,7 +409,8 @@ const performDownload = async () => {
   const partialPath = path.join(getUpdatesDir(), `${manifest.id}.part`);
   const finalPath = path.join(getUpdatesDir(), manifest.fileName);
   try {
-    const response = await fetch(`${serverUrl}/updates/download/${encodeURIComponent(manifest.id)}`, {
+    const onlineLicense = getOnlineLicense();
+    const response = await fetch(`${serverUrl}/updates/download/${encodeURIComponent(manifest.id)}?licenseId=${encodeURIComponent(onlineLicense?.licenseId || '')}`, {
       signal: AbortSignal.timeout(30 * 60 * 1000),
     });
     if (!response.ok || !response.body) throw new Error(`Servidor respondeu ${response.status}.`);
@@ -333,6 +466,18 @@ const installDownloaded = async () => {
     error.status = 400;
     throw error;
   }
+  const onlineLicense = getOnlineLicense();
+  if (!onlineLicense) throw Object.assign(new Error('Conecte à internet para confirmar esta atualização.'), { status: 409 });
+  let latest;
+  try {
+    const approval = await fetch(`${onlineLicense.serverUrl}/updates/latest?currentVersion=${encodeURIComponent(clientState.currentVersion)}&licenseId=${encodeURIComponent(onlineLicense.licenseId)}`, { signal: AbortSignal.timeout(10000) });
+    latest = approval.ok ? await approval.json() : null;
+  } catch {
+    throw Object.assign(new Error('Não foi possível confirmar a liberação da atualização. Tente novamente conectado à internet.'), { status: 409 });
+  }
+  if (!latest?.available || latest.manifest?.id !== clientState.manifest.id) {
+    throw Object.assign(new Error('Esta atualização foi pausada ou retirada pelo gestor.'), { status: 409 });
+  }
   const sha256 = await hashFile(clientState.downloadPath);
   if (sha256 !== clientState.manifest.sha256) {
     const error = new Error('O instalador baixado foi alterado ou esta corrompido.');
@@ -373,8 +518,12 @@ const scheduleCheck = () => {
 };
 
 const start = () => {
-  if (isManagerMode()) return;
+  if (isManagerMode()) {
+    cleanupUpdateArtifacts().catch((error) => console.warn(`[UPDATE] Limpeza pendente: ${error.message}`));
+    return;
+  }
   loadDownloadedState();
+  cleanupUpdateArtifacts().catch((error) => console.warn(`[UPDATE] Limpeza pendente: ${error.message}`));
   clearTimeout(checkTimer);
   checkTimer = setTimeout(async () => {
     await checkNow();
@@ -387,11 +536,15 @@ module.exports = {
   beginDownload,
   checkNow,
   compareVersions,
+  cleanupUpdateArtifacts,
+  controlPublication,
   getClientState: publicClientState,
   getLatest,
+  getManagerUpdateStatus,
   getPublished,
   getPublishedFile,
   installDownloaded,
+  installManagerUpdate,
   receivePublication,
   start,
   startPublication,

@@ -4,6 +4,8 @@ const defaults = {
   publicServerUrl: '',
   offlineGraceHours: 24,
   syncIntervalMinutes: 1,
+  automaticSuspensionEnabled: true,
+  paymentGraceDays: 3,
   defaultSuspensionMessage: 'Sua assinatura esta pendente. Entre em contato para regularizar o acesso.',
 };
 

@@ -12,6 +12,8 @@ const authRoutes = require('./http/routes/auth.routes');
 const usersRoutes = require('./http/routes/users.routes');
 const licenseRoutes = require('./http/routes/license.routes');
 const subscriptionsRoutes = require('./http/routes/subscriptions.routes');
+const billingRoutes = require('./http/routes/billing.routes');
+const managerOperationsRoutes = require('./http/routes/manager-operations.routes');
 const updatesRoutes = require('./http/routes/updates.routes');
 const mesasRoutes = require('./http/routes/mesas.routes');
 const comandaRoutes = require('./http/routes/comandas.routes');
@@ -32,6 +34,7 @@ const loyaltyRoutes = require('./http/routes/loyalty.routes');
 const mobileRoutes = require('./http/routes/mobile.routes');
 const licenseGuard = require('./http/middleware/license.middleware');
 const errorMiddleware = require('./http/middleware/error.middleware');
+const auditRequest = require('./http/middleware/audit-request.middleware');
 
 const app = express();
 
@@ -79,6 +82,7 @@ if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test') {
   app.use(morgan('dev'));
 }
 app.use(helmet({ contentSecurityPolicy: false }));
+app.use(auditRequest);
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -101,6 +105,8 @@ app.use('/license', licenseRoutes);
 app.use('/auth', authLimiter, authRoutes);
 app.use('/users', usersRoutes);
 app.use('/subscriptions', subscriptionsRoutes);
+app.use('/billing', billingRoutes);
+app.use('/manager', managerOperationsRoutes);
 app.use('/updates', updatesRoutes);
 
 app.use(licenseGuard);

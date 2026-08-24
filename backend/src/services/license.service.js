@@ -347,6 +347,7 @@ const getLicenseStatus = () => {
       lastCheckedAt: matchingRemote?.checkedAt || null,
       onlineManaged: true,
       connected: Boolean(matchingRemote),
+      messages: matchingRemote?.messages || [],
     };
   } catch (error) {
     return {

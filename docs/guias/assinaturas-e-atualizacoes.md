@@ -1,9 +1,9 @@
-# ComandaFlow 2.3.1 — assinaturas e atualizações online
+# ComandaFlow 2.4.0 — assinaturas e atualizações online
 
 Esta versão gera dois aplicativos Windows separados:
 
-- `ComandaFlow-Setup-2.3.1.exe`: aplicativo instalado no restaurante assinante.
-- `ComandaFlow-Gestor-Setup-2.3.1.exe`: painel privado usado para cadastrar assinantes e publicar atualizações.
+- `ComandaFlow-Setup-2.4.0.exe`: aplicativo instalado no restaurante assinante.
+- `ComandaFlow-Gestor-Setup-2.4.0.exe`: painel privado usado para cadastrar assinantes e publicar atualizações.
 
 ## Como o controle online funciona
 
@@ -40,13 +40,17 @@ Não envie o instalador do Gestor a clientes. Ele contém a chave privada usada 
 
 ## Primeira configuração do restaurante
 
-1. O cliente instala `ComandaFlow-Setup-2.3.1.exe`.
+1. O cliente instala `ComandaFlow-Setup-2.4.0.exe`.
 2. No primeiro acesso, cria o administrador local do restaurante.
 3. O aplicativo começa com 14 dias de avaliação.
 4. Em **Configurações > Assinatura do ComandaFlow**, cola a chave `CF3-...` e ativa.
 5. O computador recebe uma identificação própria e passa a consultar o Gestor automaticamente.
 
-## Suspensão, prazo, mensagem e reativação
+## Financeiro, suspensão e reativação
+
+O painel financeiro registra valor, vencimento, situação, forma de pagamento e todo o histórico da cobrança. Ao criar uma mensalidade, marque **Gerar esta mensalidade automaticamente** ou use o botão de recorrência do assinante para definir valor, intervalo e próximo vencimento.
+
+Em **Configurar servidor**, defina a quantidade de dias de tolerância após o vencimento. Com a suspensão automática habilitada, uma cobrança vencida bloqueia o restaurante ao terminar a tolerância. Ao registrar o pagamento ou cancelar a cobrança pendente, o sistema reativa somente os bloqueios causados por inadimplência; suspensões manuais permanecem sob controle do Gestor.
 
 No assinante, clique em **Suspender** e escolha:
 
@@ -65,7 +69,10 @@ Chaves antigas `CF2-...` continuam funcionando offline, mas não aceitam bloquei
 2. Abra o Gestor e clique em **Publicar nova versão**.
 3. Informe a mesma versão do arquivo, descreva as mudanças e selecione o instalador `.exe`.
 4. Escolha se a atualização será opcional ou obrigatória.
-5. Clique em **Publicar atualização** e aguarde o envio e a verificação chegarem a 100%.
+5. Selecione os clientes de teste para a liberação inicial ou escolha todos os clientes.
+6. Clique em **Publicar atualização** e aguarde o envio e a verificação chegarem a 100%.
+
+Depois da publicação, use **Pausar** para interromper temporariamente a oferta, **Retirar** para recolher uma versão com problema e **Liberar para todos** depois que os clientes-piloto validarem a versão. O restaurante confirma novamente a liberação no servidor antes de abrir o instalador.
 
 Os restaurantes consultam novas versões automaticamente. Quando houver atualização, o aplicativo mostra as mudanças e as opções **Baixar atualização** e **Instalar e reiniciar**. Durante o download, seu PC, o Gestor e o túnel HTTPS precisam permanecer ligados.
 
@@ -77,7 +84,25 @@ Antes de abrir o instalador, o cliente confere:
 
 O instalador substitui os arquivos do programa, mas preserva o banco do restaurante em `%APPDATA%\ComandaFlow`.
 
+Depois que a versão nova inicia corretamente, o pacote baixado e outros instaladores órfãos são apagados da pasta local de atualizações. A limpeza não remove o banco, a configuração, a identidade do dispositivo nem os backups do restaurante.
+
 Importante: a linha 2.3 é a primeira que contém o atualizador. Restaurantes que ainda usam 2.2.0 ou anterior precisam instalar a 2.3.1 manualmente uma única vez. Depois disso, as próximas versões podem ser distribuídas pelo Gestor.
+
+## Atualizar o próprio Gestor
+
+1. Clique em **Publicar versão do Gestor** no cartão **Atualização do Gestor**.
+2. Selecione **Gestor** e envie exatamente `ComandaFlow-Gestor-Setup-versão.exe`.
+3. Depois da validação da assinatura e do SHA-256, clique em **Instalar e reiniciar**.
+4. O aplicativo fecha, abre o instalador e preserva os dados em `%APPDATA%\ComandaFlowGestor`.
+5. Na primeira abertura da versão nova, o instalador usado e pacotes antigos são removidos automaticamente.
+
+A atualização 2.3.1 → 2.4.0 do Gestor precisa ser instalada manualmente uma única vez, pois o autoatualizador do Gestor começa na 2.4.0. As próximas versões podem ser publicadas e instaladas no próprio painel.
+
+## Notificações e modo escuro
+
+O sino do Gestor mostra cobranças vencidas, clientes offline, chamados pendentes, assinaturas próximas do vencimento e atualizações pausadas ou retiradas. No restaurante, ele reúne mensagens enviadas pelo Gestor, avisos da assinatura e o estado da atualização. Mensagens confirmadas pelo restaurante são registradas no servidor; os demais avisos podem ser marcados como lidos localmente.
+
+O botão de lua/sol aplica o tema em cartões, tabelas, modais, formulários e avisos. A escolha fica salva no computador para as próximas aberturas.
 
 ## Dados e segurança
 
@@ -89,6 +114,20 @@ Importante: a linha 2.3 é a primeira que contém o atualizador. Restaurantes qu
 
 Mantenha backup criptografado do banco do Gestor e da pasta `.secrets`. Use senha forte no Gestor e proteja a conta do serviço de túnel com autenticação em dois fatores.
 
+## Equipe, segundo fator e auditoria
+
+No painel do Gestor, os funcionários podem ser cadastrados com estes perfis:
+
+- **Financeiro:** consulta assinantes e administra cobranças.
+- **Suporte:** acompanha instalações, envia mensagens e atende chamados.
+- **Operador:** consulta clientes e atende chamados, sem alterar cobranças ou assinaturas.
+- **Auditor:** consulta financeiro, monitoramento, suporte e trilha de auditoria.
+- **Proprietário:** acesso total, inclusive equipe, servidor e publicação de versões.
+
+Cada funcionário pode ativar o segundo fator com um aplicativo autenticador compatível com TOTP. Guarde os códigos de recuperação apresentados durante a configuração. A auditoria registra alterações autenticadas, resultado, usuário, endereço IP e dispositivo, removendo senhas, tokens, chaves de licença e códigos de segurança do registro.
+
+Como referência operacional para controles administrativos e técnicos, consulte o [Guia de Segurança da Informação para Agentes de Tratamento de Pequeno Porte da ANPD](https://www.gov.br/anpd/pt-br/assuntos/noticias/anpd-publica-guia-de-seguranca-para-agentes-de-tratamento-de-pequeno-porte).
+
 ## Gerar novamente os instaladores
 
 Na pasta `comandaflow-2.0`:
@@ -99,8 +138,8 @@ npm run release:windows
 
 Saídas:
 
-- `dist\client\ComandaFlow-Setup-2.3.1.exe`
-- `dist\manager\ComandaFlow-Gestor-Setup-2.3.1.exe`
+- `dist\client\ComandaFlow-Setup-2.4.0.exe`
+- `dist\manager\ComandaFlow-Gestor-Setup-2.4.0.exe`
 
 Testes principais:
 

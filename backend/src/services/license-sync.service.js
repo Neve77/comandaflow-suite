@@ -30,6 +30,8 @@ const syncNow = async () => {
         licenseKey: record.licenseKey,
         installationId,
         deviceName: os.hostname(),
+        appVersion: process.env.COMANDAFLOW_APP_VERSION || '0.0.0',
+        platform: `${process.platform}-${process.arch}`,
       }),
       signal: controller.signal,
     });
@@ -42,6 +44,28 @@ const syncNow = async () => {
     return state;
   } finally {
     clearTimeout(timeout);
+  }
+};
+
+const acknowledgeMessage = async (messageId) => {
+  const record = licenseService.getActiveLicenseRecord();
+  if (!record?.licenseKey) return;
+  const verified = licenseService.verifyLicenseKey(record.licenseKey);
+  const installationId = process.env.COMANDAFLOW_INSTALLATION_ID;
+  if (!verified.serverUrl || !installationId) return;
+  const response = await fetch(`${verified.serverUrl}/license/messages/${encodeURIComponent(messageId)}/read`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ licenseKey: record.licenseKey, installationId }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) throw new Error(`Servidor respondeu ${response.status}.`);
+  const remote = licenseService.getRemoteLicenseState();
+  if (remote?.messages) {
+    licenseService.saveRemoteLicenseState({
+      ...remote,
+      messages: remote.messages.filter((message) => message.id !== messageId),
+    });
   }
 };
 
@@ -78,4 +102,4 @@ const trigger = () => {
   run();
 };
 
-module.exports = { start, syncNow, trigger };
+module.exports = { acknowledgeMessage, start, syncNow, trigger };

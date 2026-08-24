@@ -3,6 +3,8 @@ const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const prisma = require('../infra/prisma/client');
 const auditService = require('./audit.service');
+const twoFactorService = require('./two-factor.service');
+const authorize = require('../http/middleware/authorize.middleware');
 
 dotenv.config();
 
@@ -47,7 +49,7 @@ const setup = async ({ name, email, password }) => {
   return user;
 };
 
-const login = async (email, password) => {
+const login = async (email, password, twoFactorCode) => {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
   if (!user || !user.active) {
     const error = new Error('Credenciais invalidas');
@@ -59,6 +61,19 @@ const login = async (email, password) => {
   if (!isPasswordValid) {
     const error = new Error('Credenciais invalidas');
     error.status = 401;
+    throw error;
+  }
+
+  if (user.twoFactorEnabled && !twoFactorCode) {
+    const error = new Error('Informe o código do autenticador ou um código de recuperação.');
+    error.status = 428;
+    error.code = 'TWO_FACTOR_REQUIRED';
+    throw error;
+  }
+  if (user.twoFactorEnabled && !(await twoFactorService.verifyLogin(user, twoFactorCode))) {
+    const error = new Error('Código de autenticação inválido.');
+    error.status = 401;
+    error.code = 'TWO_FACTOR_INVALID';
     throw error;
   }
 
@@ -77,7 +92,7 @@ const login = async (email, password) => {
   });
 
   return {
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: { id: user.id, email: user.email, name: user.name, role: user.role, twoFactorEnabled: user.twoFactorEnabled, permissions: authorize.permissionsFor(user.role) },
     token
   };
 };

@@ -9,6 +9,13 @@ Sistema de gestão para restaurantes e bares, com aplicativo Windows para o esta
 - Perfis de acesso, auditoria, backup e restauração.
 - Licenças assinadas com Ed25519, período de avaliação e bloqueio remoto.
 - Suspensão imediata ou programada, com mensagem personalizada ao assinante.
+- Cobrança recorrente, histórico de pagamentos e suspensão automática por inadimplência.
+- Monitoramento online/offline, versão instalada e dispositivos ativos.
+- Mensagens individuais ou em massa e chamados de suporte por assinante.
+- Atualizações graduais para clientes-piloto, com pausa, retirada e promoção para todos.
+- Atualização separada do Gestor e dos restaurantes, com remoção automática dos instaladores antigos.
+- Central de notificações real e tema claro/escuro persistente.
+- Equipe do Gestor com permissões por perfil, autenticação em dois fatores e auditoria de alterações.
 - Publicação de atualizações assinadas, validação SHA-256 e instalação assistida.
 
 ## Tecnologia

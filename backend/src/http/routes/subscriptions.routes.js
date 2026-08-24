@@ -7,7 +7,7 @@ const managerOnly = require('../middleware/manager.middleware');
 const validate = require('../middleware/validate.middleware');
 
 const router = express.Router();
-router.use(managerOnly, authenticate, authorize('proprietario'));
+router.use(managerOnly, authenticate);
 
 const subscriberSchema = z.object({
   businessName: z.string().trim().min(2).max(150),
@@ -48,19 +48,21 @@ const settingsSchema = z.object({
   }, 'Use o endereco HTTPS publico do tunel. localhost e 127.0.0.1 nao funcionam em outro computador.'),
   offlineGraceHours: z.number().int().min(1).max(168),
   syncIntervalMinutes: z.number().int().min(1).max(60),
+  automaticSuspensionEnabled: z.boolean().default(true),
+  paymentGraceDays: z.number().int().min(0).max(90).default(3),
   defaultSuspensionMessage: z.string().trim().min(3).max(600),
 });
 
-router.get('/summary', subscriptionsController.summary);
-router.get('/settings', subscriptionsController.getSettings);
-router.put('/settings', validate(settingsSchema), subscriptionsController.saveSettings);
-router.get('/subscribers', subscriptionsController.list);
-router.post('/subscribers', validate(subscriberSchema), subscriptionsController.create);
-router.put('/subscribers/:id', validate(updateSchema), subscriptionsController.update);
-router.post('/subscribers/:id/issue', validate(issueSchema), subscriptionsController.issue);
-router.post('/subscribers/:id/suspend', validate(suspendSchema), subscriptionsController.suspend);
-router.post('/subscribers/:id/reactivate', subscriptionsController.reactivate);
-router.post('/subscribers/:id/cancel', validate(messageSchema), subscriptionsController.cancelSubscriber);
-router.post('/licenses/:id/cancel', subscriptionsController.cancelSubscription);
+router.get('/summary', authorize.permission('subscriptions:read'), subscriptionsController.summary);
+router.get('/settings', authorize.permission('subscriptions:read'), subscriptionsController.getSettings);
+router.put('/settings', authorize.permission('subscriptions:write'), validate(settingsSchema), subscriptionsController.saveSettings);
+router.get('/subscribers', authorize.permission('subscriptions:read'), subscriptionsController.list);
+router.post('/subscribers', authorize.permission('subscriptions:write'), validate(subscriberSchema), subscriptionsController.create);
+router.put('/subscribers/:id', authorize.permission('subscriptions:write'), validate(updateSchema), subscriptionsController.update);
+router.post('/subscribers/:id/issue', authorize.permission('subscriptions:write'), validate(issueSchema), subscriptionsController.issue);
+router.post('/subscribers/:id/suspend', authorize.permission('subscriptions:write'), validate(suspendSchema), subscriptionsController.suspend);
+router.post('/subscribers/:id/reactivate', authorize.permission('subscriptions:write'), subscriptionsController.reactivate);
+router.post('/subscribers/:id/cancel', authorize.permission('subscriptions:write'), validate(messageSchema), subscriptionsController.cancelSubscriber);
+router.post('/licenses/:id/cancel', authorize.permission('subscriptions:write'), subscriptionsController.cancelSubscription);
 
 module.exports = router;

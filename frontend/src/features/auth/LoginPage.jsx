@@ -73,6 +73,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -111,9 +113,10 @@ export default function LoginPage() {
       if (setupRequired) {
         await api.post('/auth/setup', { name, email, password });
       }
-      await login(email, password);
+      await login(email, password, twoFactorCode);
       navigate(system.subscriptionManager ? '/subscriptions' : '/dashboard');
     } catch (requestError) {
+      if (requestError.response?.data?.code === 'TWO_FACTOR_REQUIRED') setTwoFactorRequired(true);
       setError(requestError.response?.data?.message || 'Não foi possível concluir o acesso. Tente novamente.');
     } finally {
       setLoading(false);
@@ -219,6 +222,16 @@ export default function LoginPage() {
                 <input
                   type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Como podemos chamar você?"
                   autoComplete="name" minLength={2} required style={inputStyle} onFocus={focusInput} onBlur={blurInput}
+                />
+              </Field>
+            )}
+
+            {!setupRequired && twoFactorRequired && (
+              <Field label="Código de segurança" icon={ShieldCheck}>
+                <input
+                  type="text" value={twoFactorCode} onChange={(event) => setTwoFactorCode(event.target.value.toUpperCase())}
+                  placeholder="6 dígitos ou código de recuperação" autoComplete="one-time-code" minLength={6} maxLength={20}
+                  required style={inputStyle} onFocus={focusInput} onBlur={blurInput}
                 />
               </Field>
             )}

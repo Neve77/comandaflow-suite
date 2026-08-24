@@ -1,22 +1,31 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  Ban,
   Building2,
   Check,
   CreditCard,
   Globe2,
   KeyRound,
+  LoaderCircle,
+  MonitorDown,
   Plus,
+  PauseCircle,
+  PlayCircle,
   RefreshCw,
+  Repeat2,
   Search,
   ShieldCheck,
   UploadCloud,
   UserRoundCheck,
   UsersRound,
+  WalletCards,
 } from 'lucide-react';
+import { useAuth } from '../../app/providers/AuthContext';
 import api from '../../shared/services/api';
 import {
   IssueModal,
+  CancellationModal,
   LicenseModal,
   MessageModal,
   PublishUpdateModal,
@@ -24,6 +33,12 @@ import {
   SubscriberModal,
   SuspensionModal,
 } from './components/SubscriptionModals';
+import BillingPanel from './components/BillingPanel';
+import { BillingChargeModal, BillingHistoryModal, PaymentModal, RecurringBillingModal } from './components/BillingModals';
+import MessagesPanel from './components/MessagesPanel';
+import MonitoringPanel from './components/MonitoringPanel';
+import SecurityPanel from './components/SecurityPanel';
+import SupportPanel from './components/SupportPanel';
 import {
   copyText,
   emptySubscriber,
@@ -33,6 +48,8 @@ import {
 } from './subscription-utils';
 
 export default function SubscriptionsPage() {
+  const { user } = useAuth();
+  const can = useCallback((permission) => user?.role === 'proprietario' || user?.permissions?.includes('*') || user?.permissions?.includes(permission), [user]);
   const [subscribers, setSubscribers] = useState([]);
   const [summary, setSummary] = useState({ total: 0, active: 0, suspended: 0, expiringSoon: 0 });
   const [search, setSearch] = useState('');
@@ -44,12 +61,23 @@ export default function SubscriptionsPage() {
   const [issueModal, setIssueModal] = useState(null);
   const [licenseModal, setLicenseModal] = useState(null);
   const [suspendModal, setSuspendModal] = useState(null);
+  const [cancelSubscriberModal, setCancelSubscriberModal] = useState(null);
   const [messageModal, setMessageModal] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [publishedUpdate, setPublishedUpdate] = useState(null);
+  const [managerUpdate, setManagerUpdate] = useState(null);
+  const [managerUpdateStatus, setManagerUpdateStatus] = useState({ status: 'idle', available: false, currentVersion: '' });
+  const [installingManager, setInstallingManager] = useState(false);
+  const [charges, setCharges] = useState([]);
+  const [billingSummary, setBillingSummary] = useState({ pending: 0, overdue: 0, cancelledThisMonth: 0, cancelledSubscribers: 0, outstandingTotal: 0, receivedThisMonth: 0, recurringMonthly: 0 });
+  const [billingModal, setBillingModal] = useState(null);
+  const [paymentModal, setPaymentModal] = useState(null);
+  const [billingHistory, setBillingHistory] = useState(null);
+  const [recurrenceModal, setRecurrenceModal] = useState(null);
   const [settings, setSettings] = useState({
     publicServerUrl: '', offlineGraceHours: 24, syncIntervalMinutes: 1,
+    automaticSuspensionEnabled: true, paymentGraceDays: 3,
     defaultSuspensionMessage: 'Sua assinatura esta pendente. Entre em contato para regularizar o acesso.',
   });
   const publicServerReady = useMemo(() => {
@@ -63,22 +91,31 @@ export default function SubscriptionsPage() {
     setLoading(true);
     setError('');
     try {
-      const [listResponse, summaryResponse, settingsResponse, updateResponse] = await Promise.all([
+      const billingAllowed = can('billing:read');
+      const [listResponse, summaryResponse, settingsResponse, updateResponse, managerUpdateResponse, managerStatusResponse, chargesResponse, billingResponse] = await Promise.all([
         api.get('/subscriptions/subscribers', { params: { search: search || undefined, status } }),
         api.get('/subscriptions/summary'),
         api.get('/subscriptions/settings'),
-        api.get('/updates/published'),
+        api.get('/updates/published', { params: { product: 'client' } }),
+        api.get('/updates/published', { params: { product: 'manager' } }),
+        api.get('/updates/manager/status'),
+        billingAllowed ? api.get('/billing/charges') : Promise.resolve({ data: { charges: [] } }),
+        billingAllowed ? api.get('/billing/summary') : Promise.resolve({ data: {} }),
       ]);
       setSubscribers(listResponse.data.subscribers || []);
       setSummary(summaryResponse.data);
       setSettings(settingsResponse.data);
       setPublishedUpdate(updateResponse.data.published);
+      setManagerUpdate(managerUpdateResponse.data.published);
+      setManagerUpdateStatus(managerStatusResponse.data);
+      setCharges(chargesResponse.data.charges || []);
+      setBillingSummary(billingResponse.data);
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Nao foi possivel carregar os assinantes.');
     } finally {
       setLoading(false);
     }
-  }, [search, status]);
+  }, [can, search, status]);
 
   useEffect(() => {
     const timeout = setTimeout(loadData, 250);
@@ -133,12 +170,20 @@ export default function SubscriptionsPage() {
     }
   };
 
+  const cancelSubscriber = async (form) => {
+    try {
+      await api.post(`/subscriptions/subscribers/${cancelSubscriberModal.id}/cancel`, form);
+      setCancelSubscriberModal(null); showNotice('Conta cancelada e recorrência interrompida.'); await loadData();
+    } catch (requestError) { throw new Error(requestError.response?.data?.message || 'Não foi possível cancelar a conta.'); }
+  };
+
   const saveServerSettings = async (nextSettings) => {
     try {
       const response = await api.put('/subscriptions/settings', {
         ...nextSettings,
         offlineGraceHours: Number(nextSettings.offlineGraceHours),
         syncIntervalMinutes: Number(nextSettings.syncIntervalMinutes),
+        paymentGraceDays: Number(nextSettings.paymentGraceDays),
       });
       setSettings(response.data.settings);
       setSettingsOpen(false);
@@ -151,9 +196,12 @@ export default function SubscriptionsPage() {
   const publishUpdate = async (form, onProgress) => {
     try {
       const started = await api.post('/updates/publish/start', {
+        product: form.product,
         version: form.version,
         releaseNotes: form.releaseNotes,
         mandatory: form.mandatory,
+        rollout: form.rollout,
+        pilotSubscriberIds: form.pilotSubscriberIds,
         fileName: form.file.name,
         size: form.file.size,
       });
@@ -165,11 +213,33 @@ export default function SubscriptionsPage() {
         },
       });
       setUpdateModalOpen(false);
-      showNotice(`Atualizacao ${form.version} publicada para os restaurantes.`);
+      showNotice(`Atualização ${form.version} publicada para ${form.product === 'manager' ? 'o Gestor' : 'os restaurantes'}.`);
       await loadData();
     } catch (requestError) {
       throw new Error(requestError.response?.data?.message || 'Nao foi possivel publicar a atualizacao.');
     }
+  };
+
+  const installManagerUpdate = async () => {
+    if (!window.confirm(`Instalar o ComandaFlow Gestor ${managerUpdateStatus.manifest?.version}? O aplicativo será reiniciado.`)) return;
+    setInstallingManager(true);
+    setError('');
+    try {
+      await api.post('/updates/manager/install');
+      showNotice('Instalador do Gestor aberto. O aplicativo será reiniciado.');
+    } catch (requestError) {
+      setInstallingManager(false);
+      setError(requestError.response?.data?.message || 'Não foi possível iniciar a atualização do Gestor.');
+    }
+  };
+
+  const controlUpdate = async (action) => {
+    if (action === 'withdraw' && !window.confirm('Retirar esta atualização de todos os clientes?')) return;
+    try {
+      await api.patch('/updates/published/control', { action });
+      showNotice(action === 'promote' ? 'Atualização liberada para todos.' : action === 'pause' ? 'Atualização pausada.' : action === 'resume' ? 'Atualização retomada.' : 'Atualização retirada.');
+      await loadData();
+    } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível alterar a atualização.'); }
   };
 
   const issueSubscription = async (form) => {
@@ -181,6 +251,34 @@ export default function SubscriptionsPage() {
     } catch (requestError) {
       throw new Error(requestError.response?.data?.message || 'Nao foi possivel emitir a assinatura.');
     }
+  };
+
+  const saveCharge = async (form) => {
+    try {
+      if (billingModal?.id) await api.put(`/billing/charges/${billingModal.id}`, form);
+      else await api.post(`/billing/subscribers/${form.subscriberId}/charges`, form);
+      setBillingModal(null); showNotice(billingModal?.id ? 'Cobrança atualizada.' : 'Cobrança criada.'); await loadData();
+    } catch (requestError) { throw new Error(requestError.response?.data?.message || 'Não foi possível salvar a cobrança.'); }
+  };
+
+  const payCharge = async (form) => {
+    try {
+      const response = await api.post(`/billing/charges/${paymentModal.id}/pay`, form);
+      setPaymentModal(null); showNotice(response.data.reactivated ? 'Pagamento registrado e acesso reativado.' : 'Pagamento registrado.'); await loadData();
+    } catch (requestError) { throw new Error(requestError.response?.data?.message || 'Não foi possível registrar o pagamento.'); }
+  };
+
+  const saveRecurrence = async (form) => {
+    try {
+      await api.put(`/billing/subscribers/${recurrenceModal.id}/recurrence`, form);
+      setRecurrenceModal(null); showNotice(form.enabled ? 'Mensalidade recorrente configurada.' : 'Mensalidade recorrente desativada.'); await loadData();
+    } catch (requestError) { throw new Error(requestError.response?.data?.message || 'Não foi possível atualizar a recorrência.'); }
+  };
+
+  const cancelCharge = async (charge) => {
+    if (!window.confirm(`Cancelar a cobrança de ${charge.subscriber.businessName}?`)) return;
+    try { const response = await api.post(`/billing/charges/${charge.id}/cancel`, { reason: 'Cancelada pelo Gestor.' }); showNotice(response.data.reactivated ? 'Cobrança cancelada e acesso reativado.' : 'Cobrança cancelada.'); await loadData(); }
+    catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível cancelar a cobrança.'); }
   };
 
   const cards = useMemo(() => [
@@ -201,9 +299,9 @@ export default function SubscriptionsPage() {
               <p className="section-subtitle">Cadastre clientes, renove planos e gere chaves de ativacao.</p>
             </div>
           </div>
-          <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" onClick={() => setSubscriberModal(emptySubscriber)}>
+          {can('subscriptions:write') && <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" onClick={() => setSubscriberModal(emptySubscriber)}>
             <Plus size={18} /> Novo assinante
-          </button>
+          </button>}
         </div>
       </section>
 
@@ -225,7 +323,7 @@ export default function SubscriptionsPage() {
               </p>
             </div>
           </div>
-          <button className="btn-secondary shrink-0" onClick={() => setSettingsOpen(true)}>Configurar servidor</button>
+          {can('subscriptions:write') && <button className="btn-secondary shrink-0" onClick={() => setSettingsOpen(true)}>Configurar servidor</button>}
         </div>
       </section>
 
@@ -238,12 +336,31 @@ export default function SubscriptionsPage() {
               {publishedUpdate?.manifest ? (
                 <>
                   <p className="mt-1 text-sm text-slate-600">Versao {publishedUpdate.manifest.version} publicada em {formatDate(publishedUpdate.manifest.publishedAt)} · {formatFileSize(publishedUpdate.manifest.size)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{publishedUpdate.manifest.mandatory ? 'Atualizacao obrigatoria' : 'O restaurante pode escolher instalar depois'}.</p>
+                  <p className="mt-1 text-xs text-slate-500">{publishedUpdate.manifest.mandatory ? 'Atualizacao obrigatoria' : 'O restaurante pode escolher instalar depois'} · {publishedUpdate.control?.audience === 'pilot' ? 'clientes de teste' : 'todos os clientes'} · {{ active: 'ativa', paused: 'pausada', withdrawn: 'retirada' }[publishedUpdate.control?.state] || 'ativa'}.</p>
                 </>
               ) : <p className="mt-1 text-sm text-slate-600">Nenhum instalador foi publicado pelo Gestor.</p>}
             </div>
           </div>
-          <button className="btn-primary shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => setUpdateModalOpen(true)}><UploadCloud size={17} />Publicar nova versao</button>
+          {can('updates:write') && <div className="flex flex-wrap justify-end gap-2">{publishedUpdate?.control?.audience === 'pilot' && <button className="btn-secondary text-emerald-700" onClick={() => controlUpdate('promote')}>Liberar para todos</button>}{publishedUpdate?.control?.state === 'paused' ? <button className="btn-secondary" onClick={() => controlUpdate('resume')}><PlayCircle size={16} />Retomar</button> : publishedUpdate?.control?.state !== 'withdrawn' && <button className="btn-secondary" onClick={() => controlUpdate('pause')}><PauseCircle size={16} />Pausar</button>}{publishedUpdate && publishedUpdate.control?.state !== 'withdrawn' && <button className="btn-secondary text-rose-700" onClick={() => controlUpdate('withdraw')}><Ban size={16} />Retirar</button>}<button className="btn-primary shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => setUpdateModalOpen('client')}><UploadCloud size={17} />Publicar nova versão</button></div>}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-violet-100 p-3 text-violet-700"><MonitorDown size={22} /></div>
+            <div>
+              <p className="font-extrabold text-slate-900">Atualização do Gestor</p>
+              {managerUpdate?.manifest ? <>
+                <p className="mt-1 text-sm text-slate-600">Versão {managerUpdate.manifest.version} pronta · {formatFileSize(managerUpdate.manifest.size)}</p>
+                <p className="mt-1 text-xs text-slate-500">Versão instalada: {managerUpdateStatus.currentVersion || 'não identificada'}. O instalador anterior é removido automaticamente depois da atualização.</p>
+              </> : <p className="mt-1 text-sm text-slate-600">Gestor {managerUpdateStatus.currentVersion || ''} instalado e nenhum pacote novo pendente.</p>}
+            </div>
+          </div>
+          {can('updates:write') && <div className="flex flex-wrap justify-end gap-2">
+            {managerUpdateStatus.available && <button className="btn-primary bg-violet-600 hover:bg-violet-700" onClick={installManagerUpdate} disabled={installingManager}>{installingManager ? <LoaderCircle className="animate-spin" size={17} /> : <MonitorDown size={17} />}{installingManager ? 'Abrindo instalador...' : 'Instalar e reiniciar'}</button>}
+            <button className="btn-secondary" onClick={() => setUpdateModalOpen('manager')}><UploadCloud size={17} />Publicar versão do Gestor</button>
+          </div>}
         </div>
       </section>
 
@@ -258,6 +375,13 @@ export default function SubscriptionsPage() {
           </article>
         ))}
       </section>
+
+      {can('billing:read') && <BillingPanel summary={billingSummary} charges={charges} loading={loading} canWrite={can('billing:write')} onCreate={(subscriberId) => setBillingModal(subscriberId ? { subscriberId } : {})} onEdit={setBillingModal} onPay={setPaymentModal} onCancel={cancelCharge} onHistory={setBillingHistory} />}
+
+      {can('monitoring:read') && <MonitoringPanel />}
+      {can('messages:read') && <MessagesPanel subscribers={subscribers} canWrite={can('messages:write')} />}
+      {can('support:read') && <SupportPanel subscribers={subscribers} canWrite={can('support:write')} />}
+      <SecurityPanel canManageUsers={['proprietario', 'administrador'].includes(user?.role)} canAudit={['proprietario', 'administrador'].includes(user?.role) || can('audit:read')} />
 
       <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
@@ -300,11 +424,14 @@ export default function SubscriptionsPage() {
                     <td className="px-5 py-4"><p className="font-semibold text-slate-700">{formatDate(current?.expiresAt)}</p><p className="text-xs text-slate-500">{current?.status || '—'}</p></td>
                     <td className="px-5 py-4"><div className="flex justify-end gap-2">
                       {current?.licenseKey && <button className="btn-secondary px-3" onClick={() => setLicenseModal({ ...current, businessName: subscriber.businessName })} title="Ver chave"><KeyRound size={16} /></button>}
-                      <button className="btn-secondary px-3" onClick={() => setSubscriberModal(subscriber)}>Editar</button>
-                      {subscriber.status === 'ativo'
+                      {can('subscriptions:write') && <button className="btn-secondary px-3" onClick={() => setSubscriberModal(subscriber)}>Editar</button>}
+                      {can('billing:write') && <button className="btn-secondary px-3 text-blue-700" title="Nova cobrança" onClick={() => setBillingModal({ subscriberId: subscriber.id })}><WalletCards size={16} /></button>}
+                      {can('billing:write') && <button className={`btn-secondary px-3 ${subscriber.recurringBillingEnabled ? 'text-violet-700' : ''}`} title="Configurar mensalidade recorrente" onClick={() => setRecurrenceModal(subscriber)}><Repeat2 size={16} /></button>}
+                      {can('subscriptions:write') && (subscriber.status === 'ativo'
                         ? <button className="btn-secondary px-3 text-amber-700" onClick={() => setSuspendModal(subscriber)}>Suspender</button>
-                        : <button className="btn-secondary px-3 text-emerald-700" onClick={() => reactivate(subscriber)}>Ativar</button>}
-                      <button className="btn-primary bg-emerald-600 px-3 hover:bg-emerald-700" disabled={subscriber.status !== 'ativo'} onClick={() => setIssueModal(subscriber)}><CreditCard size={16} /> Emitir</button>
+                        : <button className="btn-secondary px-3 text-emerald-700" onClick={() => reactivate(subscriber)}>Ativar</button>)}
+                      {can('subscriptions:write') && subscriber.status !== 'cancelado' && <button className="btn-secondary px-3 text-rose-700" onClick={() => setCancelSubscriberModal(subscriber)}>Cancelar conta</button>}
+                      {can('subscriptions:write') && <button className="btn-primary bg-emerald-600 px-3 hover:bg-emerald-700" disabled={subscriber.status !== 'ativo'} onClick={() => setIssueModal(subscriber)}><CreditCard size={16} /> Emitir</button>}
                     </div></td>
                   </tr>
                 );
@@ -320,9 +447,14 @@ export default function SubscriptionsPage() {
       {issueModal && <IssueModal subscriber={issueModal} onClose={() => setIssueModal(null)} onIssue={issueSubscription} />}
       {licenseModal && <LicenseModal subscription={licenseModal} onClose={() => setLicenseModal(null)} onCopy={() => { copyText(licenseModal.licenseKey); showNotice('Chave copiada para a area de transferencia.'); }} />}
       {suspendModal && <SuspensionModal subscriber={suspendModal} defaultMessage={settings.defaultSuspensionMessage} onClose={() => setSuspendModal(null)} onSuspend={suspendSubscriber} />}
+      {cancelSubscriberModal && <CancellationModal subscriber={cancelSubscriberModal} onClose={() => setCancelSubscriberModal(null)} onCancel={cancelSubscriber} />}
       {messageModal && <MessageModal data={messageModal} onClose={() => setMessageModal(null)} onCopy={() => { copyText(messageModal.message); showNotice('Mensagem copiada para a area de transferencia.'); }} />}
       {settingsOpen && <ServerSettingsModal initial={settings} onClose={() => setSettingsOpen(false)} onSave={saveServerSettings} />}
-      {updateModalOpen && <PublishUpdateModal current={publishedUpdate?.manifest} onClose={() => setUpdateModalOpen(false)} onPublish={publishUpdate} />}
+      {updateModalOpen && <PublishUpdateModal current={publishedUpdate?.manifest} managerCurrent={managerUpdate?.manifest || { version: managerUpdateStatus.currentVersion }} initialProduct={updateModalOpen} subscribers={subscribers} onClose={() => setUpdateModalOpen(false)} onPublish={publishUpdate} />}
+      {billingModal && <BillingChargeModal subscribers={subscribers} initial={billingModal} onClose={() => setBillingModal(null)} onSave={saveCharge} />}
+      {paymentModal && <PaymentModal charge={paymentModal} onClose={() => setPaymentModal(null)} onPay={payCharge} />}
+      {billingHistory && <BillingHistoryModal charge={billingHistory} onClose={() => setBillingHistory(null)} />}
+      {recurrenceModal && <RecurringBillingModal subscriber={recurrenceModal} onClose={() => setRecurrenceModal(null)} onSave={saveRecurrence} />}
     </div>
   );
 }

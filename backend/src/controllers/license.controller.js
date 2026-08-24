@@ -34,15 +34,35 @@ const activate = async (req, res, next) => {
 
 const sync = async (req, res, next) => {
   try {
-    const result = await licenseServerService.sync(req.validated);
+    const result = await licenseServerService.sync({ ...req.validated, ip: req.ip });
     return res.json(result);
   } catch (error) {
     return res.status(400).json({ message: error.message || 'Nao foi possivel validar a assinatura.' });
   }
 };
 
+const acknowledgeMessage = async (req, res, next) => {
+  try {
+    await licenseServerService.acknowledgeMessage(req.validated);
+    return res.json({ message: 'Mensagem confirmada.' });
+  } catch (error) {
+    return res.status(error.status || 400).json({ message: error.message || 'Não foi possível confirmar a mensagem.' });
+  }
+};
+
+const acknowledgeLocalMessage = async (req, res, next) => {
+  try {
+    await licenseSyncService.acknowledgeMessage(req.params.messageId);
+    return res.json({ message: 'Mensagem confirmada.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getStatus,
   activate,
+  acknowledgeMessage,
+  acknowledgeLocalMessage,
   sync
 };

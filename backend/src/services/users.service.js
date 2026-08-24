@@ -9,6 +9,7 @@ const listUsers = async () => {
       email: true,
       role: true,
       active: true,
+      twoFactorEnabled: true,
       createdAt: true,
       updatedAt: true
     },
@@ -31,19 +32,29 @@ const createUser = async ({ name, email, password, role = 'operador' }) => {
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       role: role || 'operador',
-      active: true
+      active: true,
     },
     select: {
       id: true,
       name: true,
       email: true,
       role: true,
-      active: true
+      active: true,
+      twoFactorEnabled: true,
     }
   });
 };
 
-const updateUser = async (id, { name, email, password, role, active }) => {
+const updateUser = async (id, { name, email, password, role, active }, currentUserId) => {
+  const current = await prisma.user.findUnique({ where: { id } });
+  if (!current) throw Object.assign(new Error('Usuário não encontrado.'), { status: 404 });
+  if (id === currentUserId && active === false) {
+    throw Object.assign(new Error('Você não pode desativar a própria conta.'), { status: 400 });
+  }
+  if (current.role === 'proprietario' && role && role !== 'proprietario') {
+    const owners = await prisma.user.count({ where: { role: 'proprietario', active: true } });
+    if (owners <= 1) throw Object.assign(new Error('Mantenha pelo menos um proprietário ativo.'), { status: 400 });
+  }
   const data = {};
   if (name !== undefined) data.name = name.trim();
   if (email !== undefined) data.email = email.toLowerCase().trim();
@@ -61,7 +72,8 @@ const updateUser = async (id, { name, email, password, role, active }) => {
       name: true,
       email: true,
       role: true,
-      active: true
+      active: true,
+      twoFactorEnabled: true,
     }
   });
 };
@@ -73,10 +85,10 @@ const deleteUser = async (id, currentUserId) => {
     throw error;
   }
 
-  const count = await prisma.user.count({ where: { role: 'administrador' } });
+  const count = await prisma.user.count({ where: { role: { in: ['administrador', 'proprietario'] } } });
   const target = await prisma.user.findUnique({ where: { id } });
 
-  if (target?.role === 'administrador' && count <= 1) {
+  if (['administrador', 'proprietario'].includes(target?.role) && count <= 1) {
     const error = new Error('Não é possível excluir o único administrador do sistema.');
     error.status = 400;
     throw error;

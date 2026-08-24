@@ -8,51 +8,98 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String?
-  email     String   @unique
-  password  String
-  role      String   @default("administrador")
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  auditLogs AuditLog[]
+  id                     String     @id @default(uuid())
+  name                   String?
+  email                  String     @unique
+  password               String
+  role                   String     @default("administrador")
+  active                 Boolean    @default(true)
+  twoFactorEnabled       Boolean    @default(false)
+  twoFactorSecret        String?
+  twoFactorRecoveryCodes String?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  auditLogs              AuditLog[]
 }
 
 model Subscriber {
-  id            String         @id @default(uuid())
-  businessName  String
-  contactName   String?
-  email         String         @unique
-  phone         String?
-  document      String?
-  status        String         @default("ativo") // ativo, suspenso, cancelado
-  suspensionMode String?
-  accessUntil    DateTime?
-  customerMessage String?
-  suspendedAt    DateTime?
-  notes         String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  subscriptions Subscription[]
+  id                      String           @id @default(uuid())
+  businessName            String
+  contactName             String?
+  email                   String           @unique
+  phone                   String?
+  document                String?
+  status                  String           @default("ativo") // ativo, suspenso, cancelado
+  suspensionMode          String?
+  accessUntil             DateTime?
+  customerMessage         String?
+  suspendedAt             DateTime?
+  suspensionSource        String?
+  recurringBillingEnabled Boolean          @default(false)
+  recurringAmount         Decimal?
+  billingCycleDays        Int?
+  nextBillingDate         DateTime?
+  notes                   String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  subscriptions           Subscription[]
+  billingCharges          BillingCharge[]
+  messages                ManagerMessage[]
+  supportTickets          SupportTicket[]
 }
 
 model Subscription {
-  id           String     @id @default(uuid())
-  subscriber   Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
-  subscriberId String
-  plan         String
-  status       String     @default("ativo") // ativo, substituido, expirado, cancelado
-  startsAt     DateTime   @default(now())
-  expiresAt    DateTime
-  maxDevices   Int        @default(1)
-  licenseKey   String     @unique
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  installations LicenseInstallation[]
+  id             String                @id @default(uuid())
+  subscriber     Subscriber            @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId   String
+  plan           String
+  status         String                @default("ativo") // ativo, substituido, expirado, cancelado
+  startsAt       DateTime              @default(now())
+  expiresAt      DateTime
+  maxDevices     Int                   @default(1)
+  licenseKey     String                @unique
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  installations  LicenseInstallation[]
+  billingCharges BillingCharge[]
 
   @@index([subscriberId])
   @@index([status, expiresAt])
+}
+
+model BillingCharge {
+  id             String         @id @default(uuid())
+  subscriber     Subscriber     @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId   String
+  subscription   Subscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  subscriptionId String?
+  amount         Decimal
+  dueDate        DateTime
+  status         String         @default("pendente") // pendente, vencida, paga, cancelada
+  description    String?
+  recurrenceKey  String?        @unique
+  paidAt         DateTime?
+  paymentMethod  String?
+  notes          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  events         BillingEvent[]
+
+  @@index([subscriberId, dueDate])
+  @@index([status, dueDate])
+}
+
+model BillingEvent {
+  id         String        @id @default(uuid())
+  charge     BillingCharge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  chargeId   String
+  type       String
+  fromStatus String?
+  toStatus   String?
+  message    String?
+  createdAt  DateTime      @default(now())
+
+  @@index([chargeId, createdAt])
 }
 
 model LicenseInstallation {
@@ -61,12 +108,68 @@ model LicenseInstallation {
   subscriptionId String
   installationId String
   deviceName     String?
+  appVersion     String?
+  platform       String?
+  ip             String?
   active         Boolean      @default(true)
   firstSeenAt    DateTime     @default(now())
   lastSeenAt     DateTime     @updatedAt
 
   @@unique([subscriptionId, installationId])
   @@index([subscriptionId, active])
+}
+
+model ManagerMessage {
+  id           String           @id @default(uuid())
+  subscriber   Subscriber?      @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId String?
+  title        String
+  body         String
+  severity     String           @default("info") // info, aviso, urgente
+  active       Boolean          @default(true)
+  expiresAt    DateTime?
+  createdBy    String?
+  createdAt    DateTime         @default(now())
+  receipts     MessageReceipt[]
+
+  @@index([subscriberId, active, createdAt])
+}
+
+model MessageReceipt {
+  id             String         @id @default(uuid())
+  message        ManagerMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  messageId      String
+  installationId String
+  seenAt         DateTime       @default(now())
+
+  @@unique([messageId, installationId])
+}
+
+model SupportTicket {
+  id           String                 @id @default(uuid())
+  subscriber   Subscriber             @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  subscriberId String
+  subject      String
+  description  String
+  status       String                 @default("aberto") // aberto, em_atendimento, resolvido, fechado
+  priority     String                 @default("normal") // baixa, normal, alta, urgente
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  resolvedAt   DateTime?
+  comments     SupportTicketComment[]
+
+  @@index([subscriberId, status, updatedAt])
+}
+
+model SupportTicketComment {
+  id         String        @id @default(uuid())
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId   String
+  authorName String?
+  body       String
+  createdAt  DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
 }
 
 model SystemSetting {
@@ -107,29 +210,29 @@ model Bracelet {
 }
 
 model Comanda {
-  id                  String        @id @default(uuid())
-  mesa                Mesa?         @relation(fields: [mesaId], references: [id])
-  mesaId              String?
-  bracelet            Bracelet?     @relation(fields: [braceletId], references: [id])
-  braceletId          String?
-  client              Client?       @relation(fields: [clientId], references: [id])
-  clientId            String?
-  event               Event?        @relation(fields: [eventId], references: [id])
-  eventId             String?
-  status              String        @default("aberta") // aberta, fechada, cancelada
-  openedAt            DateTime      @default(now())
-  closedAt            DateTime?
-  canceladaEm         DateTime?
-  motivoCancelamento  String?
-  total               Decimal       @default("0")
-  desconto            Decimal       @default("0")
-  formaPagamento      String?       // dinheiro, pix, debito, credito, outros
-  clienteNome         String        @default("")
-  clienteCpf          String        @default("")
-  clienteTelefone     String        @default("")
-  clienteEmail        String        @default("")
-  clienteNascimento   DateTime?
-  pedidos             Pedido[]
+  id                 String    @id @default(uuid())
+  mesa               Mesa?     @relation(fields: [mesaId], references: [id])
+  mesaId             String?
+  bracelet           Bracelet? @relation(fields: [braceletId], references: [id])
+  braceletId         String?
+  client             Client?   @relation(fields: [clientId], references: [id])
+  clientId           String?
+  event              Event?    @relation(fields: [eventId], references: [id])
+  eventId            String?
+  status             String    @default("aberta") // aberta, fechada, cancelada
+  openedAt           DateTime  @default(now())
+  closedAt           DateTime?
+  canceladaEm        DateTime?
+  motivoCancelamento String?
+  total              Decimal   @default("0")
+  desconto           Decimal   @default("0")
+  formaPagamento     String? // dinheiro, pix, debito, credito, outros
+  clienteNome        String    @default("")
+  clienteCpf         String    @default("")
+  clienteTelefone    String    @default("")
+  clienteEmail       String    @default("")
+  clienteNascimento  DateTime?
+  pedidos            Pedido[]
 }
 
 model Pedido {
@@ -149,20 +252,20 @@ model Pedido {
 }
 
 model Produto {
-  id            String          @id @default(uuid())
-  nome          String
-  preco         Decimal
-  categoria     String          @default("Geral")
-  categoriaRel  Categoria?      @relation(fields: [categoriaId], references: [id])
-  categoriaId   String?
-  descricao     String?
-  ativo         Boolean         @default(true)
-  estoque       Int             @default(0)
-  estoqueMinimo Int             @default(5)
-  imagemUrl     String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  pedidos       Pedido[]
+  id             String          @id @default(uuid())
+  nome           String
+  preco          Decimal
+  categoria      String          @default("Geral")
+  categoriaRel   Categoria?      @relation(fields: [categoriaId], references: [id])
+  categoriaId    String?
+  descricao      String?
+  ativo          Boolean         @default(true)
+  estoque        Int             @default(0)
+  estoqueMinimo  Int             @default(5)
+  imagemUrl      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  pedidos        Pedido[]
   stockMovements StockMovement[]
 }
 
@@ -200,7 +303,7 @@ model Event {
 
 model CashMovement {
   id             String   @id @default(uuid())
-  type           String   // abertura, entrada, saida, sangria, fechamento
+  type           String // abertura, entrada, saida, sangria, fechamento
   formaPagamento String   @default("dinheiro") // dinheiro, pix, debito, credito
   amount         Decimal
   description    String
@@ -211,7 +314,7 @@ model StockMovement {
   id            String   @id @default(uuid())
   produto       Produto  @relation(fields: [produtoId], references: [id])
   produtoId     String
-  type          String   // entrada, saida, inventario, perda
+  type          String // entrada, saida, inventario, perda
   quantity      Int
   previousStock Int
   newStock      Int
@@ -233,16 +336,16 @@ model AuditLog {
 }
 
 model DeviceSession {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   name        String?
   socketId    String?
   ip          String?
-  role        String   @default("garcom")
-  status      String   @default("ativo")
+  role        String    @default("garcom")
+  status      String    @default("ativo")
   pairingCode String?
   expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model BackupRecord {

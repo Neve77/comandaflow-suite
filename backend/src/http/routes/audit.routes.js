@@ -12,7 +12,7 @@ const querySchema = z.object({
 });
 
 router.use(authenticate);
-router.use(authorize('administrador', 'gerente'));
+router.use(authorize('administrador', 'gerente', 'proprietario', 'auditor'));
 router.get('/', validate(querySchema), auditController.list);
 
 module.exports = router;

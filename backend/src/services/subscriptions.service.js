@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const prisma = require('../infra/prisma/client');
 const licenseService = require('./license.service');
 const managerSettings = require('./manager-settings.service');
+const billingService = require('./billing.service');
 
 const subscriberInclude = {
   subscriptions: {
@@ -183,6 +184,7 @@ const suspend = async (id, { mode, accessUntil, message }) => {
     data: {
       status: 'suspenso',
       suspensionMode: mode,
+      suspensionSource: 'manual',
       accessUntil: deadline,
       customerMessage: message.trim(),
       suspendedAt: new Date(),
@@ -191,26 +193,32 @@ const suspend = async (id, { mode, accessUntil, message }) => {
   });
 };
 
-const reactivate = async (id) => prisma.subscriber.update({
-  where: { id },
-  data: {
-    status: 'ativo',
-    suspensionMode: null,
-    accessUntil: null,
-    customerMessage: null,
-    suspendedAt: null,
-  },
-  include: subscriberInclude,
-});
+const reactivate = async (id) => {
+  if (await billingService.hasBlockingOverdue(id)) {
+    const error = new Error('Regularize ou cancele as cobranças vencidas antes de reativar o acesso.');
+    error.status = 409;
+    throw error;
+  }
+  return prisma.subscriber.update({
+    where: { id },
+    data: { status: 'ativo', suspensionMode: null, suspensionSource: null, accessUntil: null, customerMessage: null, suspendedAt: null },
+    include: subscriberInclude,
+  });
+};
 
 const cancelSubscriber = async (id, { message }) => prisma.subscriber.update({
   where: { id },
   data: {
     status: 'cancelado',
     suspensionMode: 'imediato',
+    suspensionSource: 'manual',
     accessUntil: new Date(),
     customerMessage: message.trim(),
     suspendedAt: new Date(),
+    recurringBillingEnabled: false,
+    recurringAmount: null,
+    billingCycleDays: null,
+    nextBillingDate: null,
   },
   include: subscriberInclude,
 });

@@ -45,8 +45,8 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('comanda:unauthorized', clearSession);
   }, []);
 
-  const login = async (email, password) => {
-    const response = await api.post('/auth/login', { email, password });
+  const login = async (email, password, twoFactorCode) => {
+    const response = await api.post('/auth/login', { email, password, twoFactorCode: twoFactorCode || undefined });
     const { token: jwt, user: userData } = response.data;
     localStorage.setItem('comanda_token', jwt);
     localStorage.setItem('comanda_user', JSON.stringify(userData));

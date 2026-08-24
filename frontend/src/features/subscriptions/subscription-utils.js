@@ -16,7 +16,13 @@ export const statusStyle = {
   cancelado: 'bg-rose-100 text-rose-700',
   expirado: 'bg-slate-200 text-slate-700',
   substituido: 'bg-blue-100 text-blue-700',
+  pendente: 'bg-blue-100 text-blue-700',
+  vencida: 'bg-rose-100 text-rose-700',
+  paga: 'bg-emerald-100 text-emerald-700',
+  cancelada: 'bg-slate-200 text-slate-700',
 };
+
+export const formatMoney = (value) => Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const formatDate = (value) => value
   ? new Intl.DateTimeFormat('pt-BR').format(new Date(value))

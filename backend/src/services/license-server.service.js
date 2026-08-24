@@ -1,5 +1,7 @@
 const prisma = require('../infra/prisma/client');
 const licenseService = require('./license.service');
+const billingService = require('./billing.service');
+const managerOperations = require('./manager-operations.service');
 
 const denied = (verified, status, message, extra = {}) => ({
   allowed: false,
@@ -11,7 +13,8 @@ const denied = (verified, status, message, extra = {}) => ({
   ...extra,
 });
 
-const sync = async ({ licenseKey, installationId, deviceName }) => {
+const sync = async ({ licenseKey, installationId, deviceName, appVersion, platform, ip }) => {
+  await billingService.processOverdueCharges();
   const verified = licenseService.verifyLicenseKey(licenseKey);
   const subscription = await prisma.subscription.findUnique({
     where: { id: verified.licenseId },
@@ -26,7 +29,7 @@ const sync = async ({ licenseKey, installationId, deviceName }) => {
     (item) => item.installationId === installationId
   );
   const activeInstallations = subscription.installations.filter((item) => item.active);
-  if (!existingInstallation && activeInstallations.length >= subscription.maxDevices) {
+  if (!existingInstallation?.active && activeInstallations.length >= subscription.maxDevices) {
     return denied(
       verified,
       'limite_dispositivos',
@@ -38,9 +41,11 @@ const sync = async ({ licenseKey, installationId, deviceName }) => {
     where: {
       subscriptionId_installationId: { subscriptionId: subscription.id, installationId },
     },
-    create: { subscriptionId: subscription.id, installationId, deviceName: deviceName || null },
-    update: { deviceName: deviceName || null, active: true },
+    create: { subscriptionId: subscription.id, installationId, deviceName: deviceName || null, appVersion: appVersion || null, platform: platform || null, ip: ip || null },
+    update: { deviceName: deviceName || null, appVersion: appVersion || null, platform: platform || null, ip: ip || null, active: true },
   });
+
+  const messages = await managerOperations.pendingMessages(subscription.subscriberId, installationId);
 
   const now = new Date();
   if (subscription.expiresAt < now || subscription.status === 'expirado') {
@@ -78,6 +83,7 @@ const sync = async ({ licenseKey, installationId, deviceName }) => {
       accessUntil: accessUntil.toISOString(),
       licenseId: verified.licenseId,
       checkedAt: now.toISOString(),
+      messages,
     };
   }
 
@@ -89,7 +95,27 @@ const sync = async ({ licenseKey, installationId, deviceName }) => {
     accessUntil: null,
     licenseId: verified.licenseId,
     checkedAt: now.toISOString(),
+    messages,
   };
 };
 
-module.exports = { sync };
+const acknowledgeMessage = async ({ messageId, licenseKey, installationId }) => {
+  const verified = licenseService.verifyLicenseKey(licenseKey);
+  const subscription = await prisma.subscription.findUnique({
+    where: { id: verified.licenseId },
+    include: { installations: { where: { installationId, active: true }, select: { id: true } } },
+  });
+  if (!subscription || subscription.licenseKey !== licenseKey) {
+    const error = new Error('Assinatura inválida.');
+    error.status = 403;
+    throw error;
+  }
+  if (!subscription.installations.length) {
+    const error = new Error('Instalação não reconhecida.');
+    error.status = 403;
+    throw error;
+  }
+  return managerOperations.acknowledgeMessage(messageId, subscription.subscriberId, installationId);
+};
+
+module.exports = { acknowledgeMessage, sync };

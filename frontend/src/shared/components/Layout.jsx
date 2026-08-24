@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthContext';
 import api from '../services/api';
 import UpdatePrompt from '../../features/updates/UpdatePrompt';
+import NotificationCenter from './NotificationCenter';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -17,7 +18,6 @@ import {
   X,
   Moon,
   Sun,
-  Bell,
   Users,
   Wifi,
   WifiOff,
@@ -42,8 +42,7 @@ export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
   const [darkMode, setDarkMode]               = useState(() => localStorage.getItem('cf_dark') === 'true');
   const [online, setOnline]                   = useState(navigator.onLine);
-  const [notifOpen, setNotifOpen]             = useState(false);
-  const [licenseNotice, setLicenseNotice]     = useState(null);
+  const [licenseStatus, setLicenseStatus]     = useState(null);
 
   const managerMode = system.subscriptionManager;
   const links = managerMode
@@ -78,7 +77,7 @@ export default function Layout() {
           window.dispatchEvent(new Event('comanda:license-required'));
           return;
         }
-        setLicenseNotice(response.data.message ? response.data : null);
+        setLicenseStatus(response.data);
       } catch {
         // O backend controla a tolerância offline; uma falha isolada não bloqueia a operação.
       }
@@ -217,15 +216,7 @@ export default function Layout() {
                 : <WifiOff size={17} style={{ color: '#ef4444' }} />
               }
             </button>
-            <button
-              type="button"
-              className="header-icon-btn"
-              title="Notificações"
-              onClick={() => setNotifOpen(o => !o)}
-            >
-              <Bell size={17} />
-              <span className="notification-dot">3</span>
-            </button>
+            <NotificationCenter managerMode={managerMode} userId={user?.id} licenseStatus={licenseStatus} />
             <div
               className="header-avatar"
               style={{ marginLeft: 4, cursor: 'pointer' }}
@@ -237,15 +228,15 @@ export default function Layout() {
           </div>
         </header>
         <main className="content-area">
-          {licenseNotice && (
+          {licenseStatus?.message && (
             <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900 shadow-sm">
               <AlertTriangle className="mt-0.5 shrink-0" size={20} />
               <div>
                 <p className="text-sm font-extrabold">Aviso da assinatura</p>
-                <p className="mt-1 text-sm leading-5">{licenseNotice.message}</p>
-                {licenseNotice.accessUntil && (
+                <p className="mt-1 text-sm leading-5">{licenseStatus.message}</p>
+                {licenseStatus.accessUntil && (
                   <p className="mt-1 text-xs font-semibold">
-                    Acesso liberado ate {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(licenseNotice.accessUntil))}.
+                    Acesso liberado ate {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(licenseStatus.accessUntil))}.
                   </p>
                 )}
               </div>

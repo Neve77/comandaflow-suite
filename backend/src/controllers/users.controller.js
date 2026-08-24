@@ -20,7 +20,7 @@ const createUser = async (req, res, next) => {
 
 const updateUser = async (req, res, next) => {
   try {
-    const user = await usersService.updateUser(req.params.id, req.body);
+    const user = await usersService.updateUser(req.params.id, req.validated || req.body, req.user?.userId);
     return res.json({ user, message: 'Usuário atualizado com sucesso' });
   } catch (error) {
     next(error);
@@ -29,7 +29,7 @@ const updateUser = async (req, res, next) => {
 
 const deleteUser = async (req, res, next) => {
   try {
-    await usersService.deleteUser(req.params.id, req.user?.id);
+    await usersService.deleteUser(req.params.id, req.user?.userId);
     return res.json({ message: 'Usuário excluído com sucesso' });
   } catch (error) {
     next(error);

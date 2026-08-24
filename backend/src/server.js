@@ -5,6 +5,7 @@ const setupSocket = require('./realtime/socket');
 const ensureRuntimeSchema = require('./services/runtime-migrations.service');
 const licenseSyncService = require('./services/license-sync.service');
 const appUpdateService = require('./services/app-update.service');
+const billingScheduler = require('./services/billing-scheduler.service');
 
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   throw new Error('JWT_SECRET deve ter ao menos 32 caracteres');
@@ -58,6 +59,7 @@ const start = async () => {
     console.log(`Backend rodando em http://localhost:${PORT}`);
     licenseSyncService.start();
     appUpdateService.start();
+    billingScheduler.start();
   });
 };
 

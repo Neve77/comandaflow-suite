@@ -50,5 +50,6 @@ module.exports = {
     language: '1046',
     runAfterFinish: true,
     menuCategory: 'Orqium',
+    deleteAppDataOnUninstall: false,
   },
 };

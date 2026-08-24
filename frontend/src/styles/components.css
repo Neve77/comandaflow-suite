@@ -120,6 +120,10 @@ html.dark .nav-pill-active {
   box-shadow: none;
 }
 
+.btn-primary[class*="bg-"] {
+  color: #fff;
+}
+
 .btn-secondary {
   display: inline-flex;
   align-items: center;
@@ -537,4 +541,228 @@ html.dark .glass-card {
 .divider {
   height: 1px;
   background: var(--border);
+}
+
+.manager-loading-bar {
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.manager-loading-bar span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--emerald), #22d3ee);
+  animation: manager-loading 1.1s ease-in-out infinite;
+}
+
+.manager-quick-action {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 14px;
+  color: var(--text);
+  transition: transform var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.manager-quick-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.manager-quick-action strong,
+.manager-quick-action small {
+  display: block;
+}
+
+.manager-quick-action strong {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.manager-quick-action small {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manager-modal-card {
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  background: var(--surface);
+  margin: auto;
+}
+
+.manager-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+}
+
+.manager-modal-overlay {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden !important;
+}
+
+@keyframes manager-loading {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(340%); }
+}
+
+@media (max-width: 767px) {
+  .responsive-table-wrap {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 12px;
+  }
+
+  .responsive-data-table {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .responsive-data-table thead {
+    display: none;
+  }
+
+  .responsive-data-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .responsive-data-table tbody,
+  .responsive-data-table tr,
+  .responsive-data-table td {
+    width: 100%;
+  }
+
+  .responsive-data-table tr {
+    display: block;
+    overflow: hidden;
+    border: 1px solid var(--border) !important;
+    border-radius: 14px;
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .responsive-data-table td {
+    display: grid;
+    grid-template-columns: minmax(92px, 36%) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+    padding: 11px 13px !important;
+    text-align: right;
+  }
+
+  .responsive-data-table td:last-child {
+    border-bottom: 0;
+  }
+
+  .responsive-data-table td::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .responsive-data-table td > * {
+    min-width: 0;
+    justify-self: end;
+  }
+
+  .responsive-data-table td p,
+  .responsive-data-table td code {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .responsive-table-actions {
+    justify-content: flex-end;
+  }
+
+  .responsive-table-empty td {
+    display: block;
+    text-align: center;
+  }
+
+  .responsive-table-empty td::before {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .manager-page {
+    gap: 16px;
+  }
+
+  .manager-page > .panel:first-child {
+    padding: 16px;
+  }
+
+  .manager-header-action {
+    width: 100%;
+  }
+
+  .manager-modal-overlay {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+
+  .manager-modal-card {
+    max-height: 94vh;
+    max-height: 94dvh;
+    border-radius: 18px 18px 0 0 !important;
+    margin: 0;
+  }
+
+  .manager-modal-card > header {
+    padding: 16px;
+  }
+
+  .manager-modal-body > form,
+  .manager-modal-body > .space-y-3,
+  .manager-modal-body > .space-y-4 {
+    padding: 16px;
+  }
+
+  .manager-modal-body form > .flex.justify-end,
+  .manager-modal-body > div > .flex.justify-end {
+    flex-direction: column-reverse;
+  }
+
+  .manager-modal-body form > .flex.justify-end > button,
+  .manager-modal-body > div > .flex.justify-end > button {
+    width: 100%;
+  }
+
+  .manager-publish-actions {
+    flex-direction: column-reverse;
+  }
+
+  .manager-publish-actions > button {
+    width: 100%;
+  }
+
+  .responsive-table-actions > button {
+    min-height: 38px;
+  }
 }

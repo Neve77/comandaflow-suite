@@ -23,9 +23,13 @@ export default function UpdatePrompt() {
 
   useEffect(() => {
     api.post('/updates/check').then((response) => setState(response.data)).catch(() => {});
-    const interval = setInterval(loadStatus, 3000);
+  }, []);
+
+  const updateInProgress = ['downloading', 'installing'].includes(state?.status);
+  useEffect(() => {
+    const interval = setInterval(loadStatus, updateInProgress ? 3000 : 30000);
     return () => clearInterval(interval);
-  }, [loadStatus]);
+  }, [loadStatus, updateInProgress]);
 
   const downloadUpdate = async () => {
     setActionError('');

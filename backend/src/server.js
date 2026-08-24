@@ -2,7 +2,6 @@ const app = require('./app');
 const http = require('http');
 const { Server } = require('socket.io');
 const setupSocket = require('./realtime/socket');
-const ensureRuntimeSchema = require('./services/runtime-migrations.service');
 const licenseSyncService = require('./services/license-sync.service');
 const appUpdateService = require('./services/app-update.service');
 const billingScheduler = require('./services/billing-scheduler.service');
@@ -54,7 +53,7 @@ server.on('error', (error) => {
 });
 
 const start = async () => {
-  await ensureRuntimeSchema();
+  await app.get('schemaReady');
   server.listen(PORT, () => {
     console.log(`Backend rodando em http://localhost:${PORT}`);
     licenseSyncService.start();

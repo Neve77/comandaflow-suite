@@ -56,7 +56,9 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    const request = token ? api.post('/auth/logout').catch(() => null) : Promise.resolve();
     clearSession();
+    return request;
   };
 
   return (

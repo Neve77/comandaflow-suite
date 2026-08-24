@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { CheckCircle2, KeyRound, LockKeyhole } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { CheckCircle2, Headphones, KeyRound, LockKeyhole } from 'lucide-react';
 import api from '../../shared/services/api';
 
 export default function LicenseActivationPage({ status, onActivated }) {
@@ -61,6 +62,11 @@ export default function LicenseActivationPage({ status, onActivated }) {
           <button type="submit" disabled={loading} className="btn-primary w-full justify-center bg-emerald-600 hover:bg-emerald-700">
             <KeyRound size={18} /> {loading ? 'Validando...' : 'Ativar assinatura'}
           </button>
+          {status?.onlineManaged && (
+            <Link to="/support" className="btn-secondary w-full justify-center border-slate-600 bg-slate-800 text-white hover:bg-slate-700">
+              <Headphones size={18} />Falar com o suporte
+            </Link>
+          )}
         </form>
       </section>
     </main>

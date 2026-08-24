@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const mobileService = require('../services/mobile.service');
+const authSessionsService = require('../services/auth-sessions.service');
 
 const ROOMS = new Set(['admin', 'caixa', 'bar', 'cozinha', 'mobile']);
 const roomAllowed = (room, user) => {
@@ -9,10 +10,20 @@ const roomAllowed = (room, user) => {
   return user.role === room || ['administrador', 'gerente'].includes(user.role);
 };
 
-const verifyToken = (token) => {
+const verifyToken = async (token) => {
   if (!token) return null;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!payload.userId) return payload;
+    const session = await authSessionsService.validateSession(payload.sessionId, payload.userId);
+    if (!session) return null;
+    return {
+      ...payload,
+      email: session.user.email,
+      name: session.user.name,
+      role: session.user.role,
+      sessionId: session.id,
+    };
   } catch (error) {
     return null;
   }
@@ -38,11 +49,11 @@ const setupSocket = ({ io, app }) => {
   let connectedSockets = 0;
   let mobileSockets = 0;
 
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const auth = socket.handshake.auth || {};
     const bearer = socket.handshake.headers.authorization;
     const token = auth.token || (bearer?.startsWith('Bearer ') ? bearer.replace('Bearer ', '') : null);
-    socket.user = verifyToken(token);
+    socket.user = await verifyToken(token);
     socket.requestedRoom = auth.room;
     if (!socket.user) return next(new Error('Autenticacao obrigatoria'));
     next();

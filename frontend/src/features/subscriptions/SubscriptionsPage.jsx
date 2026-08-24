@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
+  ArrowRight,
   AlertTriangle,
   Ban,
   Building2,
@@ -15,7 +17,6 @@ import {
   RefreshCw,
   Repeat2,
   Search,
-  ShieldCheck,
   UploadCloud,
   UserRoundCheck,
   UsersRound,
@@ -23,6 +24,10 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../app/providers/AuthContext';
 import api from '../../shared/services/api';
+import {
+  canAccessManagerItem,
+  managerNavigation,
+} from '../../shared/config/manager-navigation';
 import {
   IssueModal,
   CancellationModal,
@@ -49,7 +54,18 @@ import {
 
 export default function SubscriptionsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { section } = useParams();
   const can = useCallback((permission) => user?.role === 'proprietario' || user?.permissions?.includes('*') || user?.permissions?.includes(permission), [user]);
+  const accessibleSections = useMemo(
+    () => managerNavigation.filter((item) => canAccessManagerItem(item, user)),
+    [user]
+  );
+  const requestedSection = section || 'overview';
+  const activeSection = accessibleSections.find((item) => item.key === requestedSection)
+    || accessibleSections[0]
+    || managerNavigation[0];
+  const ActiveSectionIcon = activeSection.icon;
   const [subscribers, setSubscribers] = useState([]);
   const [summary, setSummary] = useState({ total: 0, active: 0, suspended: 0, expiringSoon: 0 });
   const [search, setSearch] = useState('');
@@ -121,6 +137,11 @@ export default function SubscriptionsPage() {
     const timeout = setTimeout(loadData, 250);
     return () => clearTimeout(timeout);
   }, [loadData]);
+
+  useEffect(() => {
+    if (requestedSection !== activeSection.key) navigate(activeSection.to, { replace: true });
+    document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeSection.key, activeSection.to, navigate, requestedSection]);
 
   const showNotice = (text) => {
     setNotice(text);
@@ -288,24 +309,40 @@ export default function SubscriptionsPage() {
     { label: 'Vencem em 7 dias', value: summary.expiringSoon, icon: CreditCard, color: 'text-rose-600', bg: 'bg-rose-50' },
   ], [summary]);
 
+  const renderHeaderAction = () => {
+    if (['overview', 'clients'].includes(activeSection.key) && can('subscriptions:write')) {
+      return <button className="btn-primary manager-header-action bg-emerald-600 hover:bg-emerald-700" onClick={() => setSubscriberModal(emptySubscriber)}><Plus size={18} />Novo assinante</button>;
+    }
+    if (activeSection.key === 'billing' && can('billing:write')) {
+      return <button className="btn-primary manager-header-action bg-blue-600 hover:bg-blue-700" onClick={() => setBillingModal({})}><WalletCards size={18} />Nova cobrança</button>;
+    }
+    if (activeSection.key === 'updates' && can('updates:write')) {
+      return <button className="btn-primary manager-header-action bg-indigo-600 hover:bg-indigo-700" onClick={() => setUpdateModalOpen('client')}><UploadCloud size={18} />Publicar versão</button>;
+    }
+    if (activeSection.key === 'settings' && can('subscriptions:write')) {
+      return <button className="btn-primary manager-header-action bg-slate-800 hover:bg-slate-700" onClick={() => setSettingsOpen(true)}><Globe2 size={18} />Editar servidor</button>;
+    }
+    return null;
+  };
+
   return (
-    <div className="space-y-6">
+    <div key={activeSection.key} className="manager-page space-y-6 animate-fade-slide-up">
       <section className="panel p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700"><ShieldCheck size={26} /></div>
-            <div>
-              <h1 className="section-title">Gerenciador de Assinaturas</h1>
-              <p className="section-subtitle">Cadastre clientes, renove planos e gere chaves de ativacao.</p>
+            <div className={`rounded-xl p-3 ${activeSection.tone}`}><ActiveSectionIcon size={26} /></div>
+            <div className="min-w-0">
+              <h1 className="section-title">{activeSection.title}</h1>
+              <p className="section-subtitle">{activeSection.description}</p>
             </div>
           </div>
-          {can('subscriptions:write') && <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" onClick={() => setSubscriberModal(emptySubscriber)}>
-            <Plus size={18} /> Novo assinante
-          </button>}
+          {renderHeaderAction()}
         </div>
       </section>
 
-      <section className={`rounded-2xl border p-5 ${publicServerReady ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+      {loading && <div className="manager-loading-bar" role="status" aria-label="Atualizando dados"><span /></div>}
+
+      {['overview', 'settings'].includes(activeSection.key) && <section className={`rounded-2xl border p-5 ${publicServerReady ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className={`rounded-xl p-3 ${publicServerReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><Globe2 size={22} /></div>
@@ -325,9 +362,9 @@ export default function SubscriptionsPage() {
           </div>
           {can('subscriptions:write') && <button className="btn-secondary shrink-0" onClick={() => setSettingsOpen(true)}>Configurar servidor</button>}
         </div>
-      </section>
+      </section>}
 
-      <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+      {activeSection.key === 'updates' && <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-blue-100 p-3 text-blue-700"><UploadCloud size={22} /></div>
@@ -343,9 +380,9 @@ export default function SubscriptionsPage() {
           </div>
           {can('updates:write') && <div className="flex flex-wrap justify-end gap-2">{publishedUpdate?.control?.audience === 'pilot' && <button className="btn-secondary text-emerald-700" onClick={() => controlUpdate('promote')}>Liberar para todos</button>}{publishedUpdate?.control?.state === 'paused' ? <button className="btn-secondary" onClick={() => controlUpdate('resume')}><PlayCircle size={16} />Retomar</button> : publishedUpdate?.control?.state !== 'withdrawn' && <button className="btn-secondary" onClick={() => controlUpdate('pause')}><PauseCircle size={16} />Pausar</button>}{publishedUpdate && publishedUpdate.control?.state !== 'withdrawn' && <button className="btn-secondary text-rose-700" onClick={() => controlUpdate('withdraw')}><Ban size={16} />Retirar</button>}<button className="btn-primary shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => setUpdateModalOpen('client')}><UploadCloud size={17} />Publicar nova versão</button></div>}
         </div>
-      </section>
+      </section>}
 
-      <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
+      {activeSection.key === 'updates' && <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-violet-100 p-3 text-violet-700"><MonitorDown size={22} /></div>
@@ -362,28 +399,48 @@ export default function SubscriptionsPage() {
             <button className="btn-secondary" onClick={() => setUpdateModalOpen('manager')}><UploadCloud size={17} />Publicar versão do Gestor</button>
           </div>}
         </div>
-      </section>
+      </section>}
 
       {notice && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><Check size={18} />{notice}</div>}
       {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800">{error}</div>}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {['overview', 'clients'].includes(activeSection.key) && <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, color, bg }) => (
           <article key={label} className="panel flex items-center gap-4 p-5">
             <div className={`rounded-xl p-3 ${bg} ${color}`}><Icon size={22} /></div>
             <div><p className="text-2xl font-extrabold text-slate-900">{value}</p><p className="text-xs font-semibold text-slate-500">{label}</p></div>
           </article>
         ))}
-      </section>
+      </section>}
 
-      {can('billing:read') && <BillingPanel summary={billingSummary} charges={charges} loading={loading} canWrite={can('billing:write')} onCreate={(subscriberId) => setBillingModal(subscriberId ? { subscriberId } : {})} onEdit={setBillingModal} onPay={setPaymentModal} onCancel={cancelCharge} onHistory={setBillingHistory} />}
+      {activeSection.key === 'overview' && <section className="panel p-5 sm:p-6">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div><h2 className="text-lg font-extrabold text-slate-900">Acesso rápido</h2><p className="text-sm text-slate-500">Abra cada função do Gestor sem procurar em uma página longa.</p></div>
+          <p className="text-xs font-semibold text-slate-400">{accessibleSections.length - 1} áreas disponíveis para seu perfil</p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {accessibleSections.filter((item) => item.key !== 'overview').map((item) => {
+            const ItemIcon = item.icon;
+            return <button key={item.key} type="button" className="manager-quick-action" onClick={() => navigate(item.to)}><span className={`rounded-xl p-2.5 ${item.tone}`}><ItemIcon size={20} /></span><span className="min-w-0 flex-1 text-left"><strong>{item.label}</strong><small>{item.description}</small></span><ArrowRight size={17} /></button>;
+          })}
+        </div>
+      </section>}
 
-      {can('monitoring:read') && <MonitoringPanel />}
-      {can('messages:read') && <MessagesPanel subscribers={subscribers} canWrite={can('messages:write')} />}
-      {can('support:read') && <SupportPanel subscribers={subscribers} canWrite={can('support:write')} />}
-      <SecurityPanel canManageUsers={['proprietario', 'administrador'].includes(user?.role)} canAudit={['proprietario', 'administrador'].includes(user?.role) || can('audit:read')} />
+      {activeSection.key === 'settings' && <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <article className="panel p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Endereço público</p><p className={`mt-2 text-sm font-extrabold ${publicServerReady ? 'text-emerald-700' : 'text-amber-700'}`}>{publicServerReady ? 'Configurado e válido' : 'Configuração necessária'}</p><p className="mt-1 break-all text-xs text-slate-500">{settings.publicServerUrl || 'Nenhum endereço informado'}</p></article>
+        <article className="panel p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Sincronização</p><p className="mt-2 text-2xl font-extrabold text-slate-900">{settings.syncIntervalMinutes} min</p><p className="mt-1 text-xs text-slate-500">Intervalo normal entre verificações</p></article>
+        <article className="panel p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Tolerância offline</p><p className="mt-2 text-2xl font-extrabold text-slate-900">{settings.offlineGraceHours}h</p><p className="mt-1 text-xs text-slate-500">Prazo sem contato com o Gestor</p></article>
+        <article className="panel p-5"><p className="text-xs font-bold uppercase tracking-wider text-slate-500">Inadimplência</p><p className={`mt-2 text-sm font-extrabold ${settings.automaticSuspensionEnabled ? 'text-emerald-700' : 'text-slate-600'}`}>{settings.automaticSuspensionEnabled ? 'Bloqueio automático ativo' : 'Bloqueio automático desativado'}</p><p className="mt-1 text-xs text-slate-500">Tolerância de {settings.paymentGraceDays} dia(s)</p></article>
+      </section>}
 
-      <section className="panel overflow-hidden">
+      {activeSection.key === 'billing' && can('billing:read') && <BillingPanel summary={billingSummary} charges={charges} loading={loading} canWrite={can('billing:write')} showCreateButton={false} onCreate={(subscriberId) => setBillingModal(subscriberId ? { subscriberId } : {})} onEdit={setBillingModal} onPay={setPaymentModal} onCancel={cancelCharge} onHistory={setBillingHistory} />}
+
+      {activeSection.key === 'monitoring' && can('monitoring:read') && <MonitoringPanel />}
+      {activeSection.key === 'messages' && can('messages:read') && <MessagesPanel subscribers={subscribers} canWrite={can('messages:write')} />}
+      {activeSection.key === 'support' && can('support:read') && <SupportPanel subscribers={subscribers} canWrite={can('support:write')} />}
+      {activeSection.key === 'security' && <SecurityPanel canManageUsers={['proprietario', 'administrador'].includes(user?.role)} canAudit={['proprietario', 'administrador'].includes(user?.role) || can('audit:read')} />}
+
+      {activeSection.key === 'clients' && <section className="panel overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center">
           <label className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
@@ -395,11 +452,11 @@ export default function SubscriptionsPage() {
             <option value="suspenso">Suspensos</option>
             <option value="cancelado">Cancelados</option>
           </select>
-          <button className="btn-secondary" onClick={loadData} title="Atualizar"><RefreshCw size={17} /></button>
+          <button className="btn-secondary" onClick={loadData} title="Atualizar"><RefreshCw size={17} /><span className="md:hidden">Atualizar</span></button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+        <div className="responsive-table-wrap overflow-x-auto">
+          <table className="responsive-data-table w-full min-w-[900px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
               <tr><th className="px-5 py-3">Assinante</th><th className="px-5 py-3">Contato</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Plano atual</th><th className="px-5 py-3">Validade</th><th className="px-5 py-3 text-right">Acoes</th></tr>
             </thead>
@@ -408,9 +465,9 @@ export default function SubscriptionsPage() {
                 const current = subscriber.subscriptions?.find((item) => item.status === 'ativo') || subscriber.subscriptions?.[0];
                 return (
                   <tr key={subscriber.id} className="hover:bg-slate-50/70">
-                    <td className="px-5 py-4"><div className="flex items-center gap-3"><div className="rounded-lg bg-slate-100 p-2 text-slate-600"><Building2 size={17} /></div><div><p className="font-bold text-slate-900">{subscriber.businessName}</p><p className="text-xs text-slate-500">{subscriber.document || 'Sem documento'}</p></div></div></td>
-                    <td className="px-5 py-4"><p className="font-medium text-slate-700">{subscriber.contactName || '—'}</p><p className="text-xs text-slate-500">{subscriber.email}</p></td>
-                    <td className="px-5 py-4">
+                    <td data-label="Assinante" className="px-5 py-4"><div className="flex items-center gap-3"><div className="rounded-lg bg-slate-100 p-2 text-slate-600"><Building2 size={17} /></div><div><p className="font-bold text-slate-900">{subscriber.businessName}</p><p className="text-xs text-slate-500">{subscriber.document || 'Sem documento'}</p></div></div></td>
+                    <td data-label="Contato" className="px-5 py-4"><p className="font-medium text-slate-700">{subscriber.contactName || '—'}</p><p className="break-all text-xs text-slate-500">{subscriber.email}</p></td>
+                    <td data-label="Status" className="px-5 py-4">
                       <span className={`status-chip ${statusStyle[subscriber.status]}`}>{subscriber.status}</span>
                       {subscriber.status === 'suspenso' && (
                         <p className="mt-1 max-w-44 text-xs text-slate-500">
@@ -420,13 +477,13 @@ export default function SubscriptionsPage() {
                         </p>
                       )}
                     </td>
-                    <td className="px-5 py-4"><p className="font-semibold text-slate-700">{current?.plan || 'Sem assinatura'}</p><p className="text-xs text-slate-500">{current ? `${current.maxDevices} dispositivo(s)` : '—'}</p></td>
-                    <td className="px-5 py-4"><p className="font-semibold text-slate-700">{formatDate(current?.expiresAt)}</p><p className="text-xs text-slate-500">{current?.status || '—'}</p></td>
-                    <td className="px-5 py-4"><div className="flex justify-end gap-2">
-                      {current?.licenseKey && <button className="btn-secondary px-3" onClick={() => setLicenseModal({ ...current, businessName: subscriber.businessName })} title="Ver chave"><KeyRound size={16} /></button>}
+                    <td data-label="Plano atual" className="px-5 py-4"><p className="font-semibold text-slate-700">{current?.plan || 'Sem assinatura'}</p><p className="text-xs text-slate-500">{current ? `${current.maxDevices} dispositivo(s)` : '—'}</p></td>
+                    <td data-label="Validade" className="px-5 py-4"><p className="font-semibold text-slate-700">{formatDate(current?.expiresAt)}</p><p className="text-xs text-slate-500">{current?.status || '—'}</p></td>
+                    <td data-label="Ações" className="px-5 py-4"><div className="responsive-table-actions flex flex-wrap justify-end gap-2">
+                      {current?.licenseKey && <button className="btn-secondary px-3" onClick={() => setLicenseModal({ ...current, businessName: subscriber.businessName })} title="Ver chave"><KeyRound size={16} /><span className="md:hidden">Chave</span></button>}
                       {can('subscriptions:write') && <button className="btn-secondary px-3" onClick={() => setSubscriberModal(subscriber)}>Editar</button>}
-                      {can('billing:write') && <button className="btn-secondary px-3 text-blue-700" title="Nova cobrança" onClick={() => setBillingModal({ subscriberId: subscriber.id })}><WalletCards size={16} /></button>}
-                      {can('billing:write') && <button className={`btn-secondary px-3 ${subscriber.recurringBillingEnabled ? 'text-violet-700' : ''}`} title="Configurar mensalidade recorrente" onClick={() => setRecurrenceModal(subscriber)}><Repeat2 size={16} /></button>}
+                      {can('billing:write') && <button className="btn-secondary px-3 text-blue-700" title="Nova cobrança" onClick={() => setBillingModal({ subscriberId: subscriber.id })}><WalletCards size={16} /><span className="md:hidden">Cobrar</span></button>}
+                      {can('billing:write') && <button className={`btn-secondary px-3 ${subscriber.recurringBillingEnabled ? 'text-violet-700' : ''}`} title="Configurar mensalidade recorrente" onClick={() => setRecurrenceModal(subscriber)}><Repeat2 size={16} /><span className="md:hidden">Recorrência</span></button>}
                       {can('subscriptions:write') && (subscriber.status === 'ativo'
                         ? <button className="btn-secondary px-3 text-amber-700" onClick={() => setSuspendModal(subscriber)}>Suspender</button>
                         : <button className="btn-secondary px-3 text-emerald-700" onClick={() => reactivate(subscriber)}>Ativar</button>)}
@@ -436,12 +493,12 @@ export default function SubscriptionsPage() {
                   </tr>
                 );
               })}
-              {!loading && subscribers.length === 0 && <tr><td colSpan="6" className="px-5 py-14 text-center text-slate-500">Nenhum assinante encontrado.</td></tr>}
-              {loading && <tr><td colSpan="6" className="px-5 py-14 text-center text-slate-500">Carregando assinantes...</td></tr>}
+              {!loading && subscribers.length === 0 && <tr className="responsive-table-empty"><td colSpan="6" className="px-5 py-14 text-center text-slate-500">Nenhum assinante encontrado.</td></tr>}
+              {loading && <tr className="responsive-table-empty"><td colSpan="6" className="px-5 py-14 text-center text-slate-500">Carregando assinantes...</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
       {subscriberModal && <SubscriberModal initial={subscriberModal} onClose={() => setSubscriberModal(null)} onSave={saveSubscriber} />}
       {issueModal && <IssueModal subscriber={issueModal} onClose={() => setIssueModal(null)} onIssue={issueSubscription} />}

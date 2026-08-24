@@ -298,9 +298,14 @@ const getLicenseStatus = () => {
 
     const remote = getRemoteLicenseState();
     const matchingRemote = remote?.licenseId === verified.licenseId ? remote : null;
+    const remoteOfflineGrace = Number(matchingRemote?.offlineGraceHours);
+    const offlineGraceHours = Number.isFinite(remoteOfflineGrace) && remoteOfflineGrace > 0
+      ? remoteOfflineGrace
+      : verified.offlineGraceHours;
     if (matchingRemote && matchingRemote.allowed === false) {
       return {
         ...verified,
+        offlineGraceHours,
         valid: false,
         status: matchingRemote.status || 'suspenso',
         message: matchingRemote.message || 'Acesso suspenso pelo gestor da assinatura.',
@@ -317,6 +322,7 @@ const getLicenseStatus = () => {
     ) {
       return {
         ...verified,
+        offlineGraceHours,
         valid: false,
         status: 'suspenso',
         message: matchingRemote.message || 'O prazo de pagamento terminou. Entre em contato com o gestor.',
@@ -327,10 +333,11 @@ const getLicenseStatus = () => {
     }
 
     const lastContact = matchingRemote?.checkedAt || activeRecord.activatedAt;
-    const offlineLimit = verified.offlineGraceHours * 60 * 60 * 1000;
+    const offlineLimit = offlineGraceHours * 60 * 60 * 1000;
     if (Date.now() - new Date(lastContact).getTime() > offlineLimit) {
       return {
         ...verified,
+        offlineGraceHours,
         valid: false,
         status: 'verificacao_necessaria',
         message: 'Conecte este computador a internet para validar a assinatura.',
@@ -342,6 +349,7 @@ const getLicenseStatus = () => {
     return {
       status: matchingRemote?.warning ? 'aviso' : 'ativo',
       ...verified,
+      offlineGraceHours,
       message: matchingRemote?.message || null,
       accessUntil: matchingRemote?.accessUntil || null,
       lastCheckedAt: matchingRemote?.checkedAt || null,

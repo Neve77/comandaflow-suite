@@ -1,5 +1,13 @@
 const usersService = require('../services/users.service');
 
+const disconnectUser = (req, userId) => {
+  const sockets = req.app.get('io')?.sockets?.sockets;
+  if (!sockets) return;
+  for (const socket of sockets.values()) {
+    if (socket.user?.userId === userId) socket.disconnect(true);
+  }
+};
+
 const listUsers = async (req, res, next) => {
   try {
     const users = await usersService.listUsers();
@@ -20,7 +28,11 @@ const createUser = async (req, res, next) => {
 
 const updateUser = async (req, res, next) => {
   try {
-    const user = await usersService.updateUser(req.params.id, req.validated || req.body, req.user?.userId);
+    const values = req.validated || req.body;
+    const user = await usersService.updateUser(req.params.id, values, req.user?.userId);
+    if (values.active === false || values.password || values.role || values.email) {
+      disconnectUser(req, req.params.id);
+    }
     return res.json({ user, message: 'Usuário atualizado com sucesso' });
   } catch (error) {
     next(error);
@@ -43,7 +55,7 @@ const changePassword = async (req, res, next) => {
       return res.status(400).json({ message: 'Informe a senha atual e a nova senha.' });
     }
     const result = await usersService.changePassword({
-      userId: req.user.id,
+      userId: req.user.userId,
       currentPassword,
       newPassword
     });

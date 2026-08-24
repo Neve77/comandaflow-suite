@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthContext';
 import api from '../services/api';
+import {
+  canAccessManagerItem,
+  managerItemForPath,
+  managerNavigation,
+} from '../config/manager-navigation';
 import UpdatePrompt from '../../features/updates/UpdatePrompt';
 import NotificationCenter from './NotificationCenter';
 import {
@@ -21,8 +26,8 @@ import {
   Users,
   Wifi,
   WifiOff,
-  CreditCard,
   AlertTriangle,
+  Headphones,
 } from 'lucide-react';
 
 const restaurantLinks = [
@@ -35,22 +40,26 @@ const restaurantLinks = [
   { to: '/reports',    label: 'Relatórios',        icon: BarChart3       },
   { to: '/clients',    label: 'Clientes',          icon: Users           },
   { to: '/settings',   label: 'Configurações',     icon: Settings        },
+  { to: '/support',    label: 'Suporte',            icon: Headphones      },
 ];
 
 export default function Layout() {
   const { logout, user, system } = useAuth();
+  const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
   const [darkMode, setDarkMode]               = useState(() => localStorage.getItem('cf_dark') === 'true');
   const [online, setOnline]                   = useState(navigator.onLine);
   const [licenseStatus, setLicenseStatus]     = useState(null);
 
   const managerMode = system.subscriptionManager;
-  const links = managerMode
-    ? [{ to: '/subscriptions', label: 'Assinantes e Planos', icon: CreditCard }]
-    : restaurantLinks;
+  const managerLinks = managerNavigation.filter((item) => canAccessManagerItem(item, user));
+  const links = managerMode ? managerLinks : restaurantLinks;
+  const currentManagerItem = managerMode ? managerItemForPath(location.pathname) : null;
+  const currentRestaurantItem = managerMode ? null : restaurantLinks.find((item) => location.pathname === item.to);
   const restaurantName = managerMode
     ? 'Painel do Proprietario'
     : (localStorage.getItem('cf_nome_restaurante') || 'Meu Restaurante');
+  const headerTitle = currentManagerItem?.label || currentRestaurantItem?.label || restaurantName;
   const userInitials   = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'CF';
@@ -69,23 +78,67 @@ export default function Layout() {
   useEffect(() => {
     if (managerMode) return undefined;
     let active = true;
-    const checkLicense = async () => {
+    let lastForcedRefreshAt = 0;
+    const checkLicense = async (force = false) => {
       try {
-        const response = await api.get('/license/status');
+        const response = force
+          ? await api.post('/license/refresh')
+          : await api.get('/license/status');
         if (!active) return;
-        if (!response.data.valid) {
+        const nextStatus = force ? response.data.license : response.data;
+        if (!nextStatus.valid) {
           window.dispatchEvent(new Event('comanda:license-required'));
           return;
         }
-        setLicenseStatus(response.data);
+        setLicenseStatus(nextStatus);
       } catch {
         // O backend controla a tolerância offline; uma falha isolada não bloqueia a operação.
       }
     };
+    const refreshAfterResume = () => {
+      if (Date.now() - lastForcedRefreshAt < 10000) return;
+      lastForcedRefreshAt = Date.now();
+      checkLicense(true);
+    };
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') refreshAfterResume();
+    };
     checkLicense();
     const interval = setInterval(checkLicense, 15000);
-    return () => { active = false; clearInterval(interval); };
+    window.addEventListener('online', refreshAfterResume);
+    window.addEventListener('focus', refreshAfterResume);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener('online', refreshAfterResume);
+      window.removeEventListener('focus', refreshAfterResume);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [managerMode]);
+
+  const managedRemotely = !managerMode && Boolean(licenseStatus?.onlineManaged);
+  const managerConnected = managedRemotely
+    ? online && Boolean(licenseStatus?.sync?.connected)
+    : online;
+  const syncStatus = licenseStatus?.sync?.status;
+  const connectionLabel = !online
+    ? 'Sem internet'
+    : managerMode
+      ? 'Gestor disponivel'
+      : !managedRemotely
+        ? 'Sistema online'
+        : syncStatus === 'syncing'
+          ? 'Sincronizando...'
+          : managerConnected
+            ? 'Sincronizado com Gestor'
+            : 'Reconectando ao Gestor';
+  const lastSyncLabel = licenseStatus?.sync?.lastSuccessAt
+    ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'medium' }).format(new Date(licenseStatus.sync.lastSuccessAt))
+    : null;
+  const connectionColor = managerConnected ? undefined : online ? '#f59e0b' : '#f87171';
+  const connectionBackground = managerConnected ? undefined : online ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)';
+  const connectionBorder = managerConnected ? undefined : online ? 'rgba(245,158,11,0.2)' : 'rgba(239,68,68,0.2)';
 
   return (
     <div className="app-layout">
@@ -115,23 +168,41 @@ export default function Layout() {
             <p>{restaurantName}</p>
           </div>
         </div>
-        <div className="sidebar-status" style={{ color: online ? undefined : '#f87171', background: online ? undefined : 'rgba(239,68,68,0.08)', borderColor: online ? undefined : 'rgba(239,68,68,0.2)' }}>
-          <span className="sidebar-status-dot" style={{ background: online ? undefined : '#ef4444', boxShadow: online ? undefined : '0 0 6px rgba(239,68,68,0.5)' }} />
-          {online ? (managerMode ? 'Gestor Protegido' : 'Sistema Conectado') : 'Sem Conexão'}
+        <div className="sidebar-status" title={lastSyncLabel ? `Ultima sincronizacao: ${lastSyncLabel}` : connectionLabel} style={{ color: connectionColor, background: connectionBackground, borderColor: connectionBorder }}>
+          <span className="sidebar-status-dot" style={{ background: managerConnected ? undefined : online ? '#f59e0b' : '#ef4444', boxShadow: managerConnected ? undefined : online ? '0 0 6px rgba(245,158,11,0.5)' : '0 0 6px rgba(239,68,68,0.5)' }} />
+          {connectionLabel}
         </div>
         <nav className="sidebar-nav">
-          <p className="sidebar-section-label">{managerMode ? 'Gestao comercial' : 'Principal'}</p>
-          {(managerMode ? links : links.slice(0, 6)).map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
-            >
-              <Icon size={17} />
-              <span>{label}</span>
-            </NavLink>
-          ))}
+          {managerMode ? [...new Set(links.map((item) => item.group))].map((group) => (
+            <div key={group} className="contents">
+              <p className="sidebar-section-label">{group}</p>
+              {links.filter((item) => item.group === group).map(({ to, end, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
+                >
+                  <Icon size={17} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )) : <>
+            <p className="sidebar-section-label">Principal</p>
+            {links.slice(0, 6).map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
+              >
+                <Icon size={17} />
+                <span>{label}</span>
+              </NavLink>
+            ))}
+          </>}
           {!managerMode && <p className="sidebar-section-label" style={{ marginTop: 8 }}>Gerencial</p>}
           {!managerMode && links.slice(6).map(({ to, label, icon: Icon }) => (
             <NavLink
@@ -164,7 +235,7 @@ export default function Layout() {
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user?.name || 'Administrador'}</p>
                 <p style={{ fontSize: 10, color: 'rgba(148,163,184,0.7)' }}>
-                  {online ? 'Online' : 'Offline'}
+                  {managerConnected ? 'Sincronizado' : online ? 'Reconectando' : 'Offline'}
                 </p>
               </div>
             </div>
@@ -194,7 +265,7 @@ export default function Layout() {
 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h1>{restaurantName}</h1>
+                <h1>{headerTitle}</h1>
                 <span className="header-badge">ORQIUM</span>
               </div>
               <p>{user?.name || 'Administrador'}</p>
@@ -210,9 +281,9 @@ export default function Layout() {
             >
               {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            <button type="button" className="header-icon-btn" title={online ? 'Conectado' : 'Sem conexão'}>
+            <button type="button" className="header-icon-btn" title={lastSyncLabel ? `${connectionLabel}. Ultima sincronizacao: ${lastSyncLabel}` : connectionLabel}>
               {online
-                ? <Wifi size={17} style={{ color: '#10b981' }} />
+                ? <Wifi size={17} style={{ color: managerConnected ? '#10b981' : '#f59e0b' }} />
                 : <WifiOff size={17} style={{ color: '#ef4444' }} />
               }
             </button>

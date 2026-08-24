@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const mode = process.argv[2] === 'manager' ? 'manager' : 'client';
 const rootDir = path.resolve(__dirname, '..', '..');
+const packageVersion = require(path.join(rootDir, 'package.json')).version;
 const executable = mode === 'manager'
   ? path.join(rootDir, 'dist', 'manager', 'win-unpacked', 'ComandaFlow Gestor.exe')
   : path.join(rootDir, 'dist', 'client', 'win-unpacked', 'ComandaFlow.exe');
@@ -74,14 +75,14 @@ async function main() {
   if (!fs.existsSync(executable)) throw new Error(`Executavel nao encontrado: ${executable}`);
   const childEnvironment = { ...process.env };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
+  const packagedEnvironment = {
+    ...childEnvironment,
+    PORT: String(port),
+    APPDATA: appData,
+    COMANDAFLOW_DATA_ROOT: appData,
+  };
   const child = spawn(executable, [], {
-    env: {
-      ...childEnvironment,
-      PORT: String(port),
-      APPDATA: appData,
-      COMANDAFLOW_DATA_ROOT: appData,
-      COMANDAFLOW_ALLOW_MULTIPLE_INSTANCES: 'true',
-    },
+    env: packagedEnvironment,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -95,9 +96,26 @@ async function main() {
     const capabilities = await fetch(`http://127.0.0.1:${port}/system/capabilities`).then((response) => response.json());
     const license = await fetch(`http://127.0.0.1:${port}/license/status`).then((response) => response.json());
     const expectedManager = mode === 'manager';
-    if (capabilities.subscriptionManager !== expectedManager || health.status !== 'ok' || !license.valid) {
+    if (capabilities.subscriptionManager !== expectedManager || capabilities.appVersion !== packageVersion || health.status !== 'ok' || !license.valid) {
       throw new Error(`Validacao inesperada: ${JSON.stringify({ health, capabilities, license })}`);
     }
+
+    const secondInstance = spawn(executable, [], {
+      env: packagedEnvironment,
+      windowsHide: true,
+      stdio: 'ignore',
+    });
+    await Promise.race([
+      new Promise((resolve) => secondInstance.once('exit', resolve)),
+      delay(5000),
+    ]);
+    if (secondInstance.exitCode === null) {
+      await stopProcessTree(secondInstance);
+      throw new Error('A segunda instancia permaneceu aberta em vez de focar a primeira.');
+    }
+    await fetch(`http://127.0.0.1:${port}/health`).then((response) => {
+      if (!response.ok) throw new Error('A primeira instancia parou depois da tentativa de segunda abertura.');
+    });
 
     if (expectedManager) {
       await postJson(`http://127.0.0.1:${port}/auth/setup`, {
@@ -111,6 +129,9 @@ async function main() {
         email: 'owner@package.test',
         password: 'Package@Test123',
       }).then((response) => response.json());
+      if (login.user?.role !== 'proprietario' || !login.user?.permissions?.includes('*') || !login.session?.id) {
+        throw new Error('O login do proprietario empacotado nao recebeu acesso total e sessao segura.');
+      }
       const savedSettings = await putJson(`http://127.0.0.1:${port}/subscriptions/settings`, {
         publicServerUrl: 'https://assinaturas.package.test',
         offlineGraceHours: 24,

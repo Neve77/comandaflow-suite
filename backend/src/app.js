@@ -35,15 +35,26 @@ const mobileRoutes = require('./http/routes/mobile.routes');
 const licenseGuard = require('./http/middleware/license.middleware');
 const errorMiddleware = require('./http/middleware/error.middleware');
 const auditRequest = require('./http/middleware/audit-request.middleware');
+const {
+  createGlobalLimiter,
+  createLicenseActivationLimiter,
+  createLicenseStatusLimiter,
+} = require('./http/middleware/rate-limiters.middleware');
+const ensureRuntimeSchema = require('./services/runtime-migrations.service');
 
 const app = express();
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 2000,
-  message: { message: 'Muitas requisições. Aguarde um momento e tente novamente.' },
-});
-app.use(limiter);
+// Confia nos cabeçalhos do túnel apenas quando o proxy está no próprio computador.
+app.set('trust proxy', 'loopback');
+const schemaReady = ensureRuntimeSchema();
+app.set('schemaReady', schemaReady);
+app.use((req, res, next) => schemaReady.then(() => next()).catch(next));
+
+// A consulta e a ativação da assinatura precisam continuar disponíveis mesmo
+// quando o tráfego normal do restaurante esgota o limitador global.
+app.get('/license/status', createLicenseStatusLimiter());
+app.post('/license/activate', createLicenseActivationLimiter());
+app.use(createGlobalLimiter());
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -93,6 +104,7 @@ app.get('/system/capabilities', (req, res) => {
   res.json({
     subscriptionManager,
     appName: subscriptionManager ? 'ComandaFlow Gestor' : 'ComandaFlow',
+    appVersion: process.env.COMANDAFLOW_APP_VERSION || null,
   });
 });
 
@@ -102,7 +114,9 @@ app.get('/mobile', (req, res) => {
 
 app.use('/license', licenseRoutes);
 
-app.use('/auth', authLimiter, authRoutes);
+app.use('/auth/login', authLimiter);
+app.use('/auth/setup', authLimiter);
+app.use('/auth', authRoutes);
 app.use('/users', usersRoutes);
 app.use('/subscriptions', subscriptionsRoutes);
 app.use('/billing', billingRoutes);

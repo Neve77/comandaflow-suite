@@ -7,7 +7,10 @@ const { z } = require('zod');
 const validate = require('../middleware/validate.middleware');
 
 router.use(authenticate);
-router.post('/change-password', usersController.changePassword);
+router.post('/change-password', validate(z.object({
+  currentPassword: z.string().min(6).max(128),
+  newPassword: z.string().min(10).max(128),
+})), usersController.changePassword);
 
 router.use(authorize('proprietario', 'administrador'));
 const roles = z.enum(['proprietario', 'financeiro', 'suporte', 'operador', 'auditor', 'administrador', 'gerente', 'caixa']);

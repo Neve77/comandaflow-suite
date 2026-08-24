@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const prisma = require('../infra/prisma/client');
+const authSessionsService = require('./auth-sessions.service');
 
 const listUsers = async () => {
   return prisma.user.findMany({
@@ -25,7 +26,7 @@ const createUser = async ({ name, email, password, role = 'operador' }) => {
     throw error;
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = await bcrypt.hash(password, 12);
   return prisma.user.create({
     data: {
       name: name.trim(),
@@ -61,10 +62,10 @@ const updateUser = async (id, { name, email, password, role, active }, currentUs
   if (role !== undefined) data.role = role;
   if (active !== undefined) data.active = Boolean(active);
   if (password) {
-    data.password = await bcrypt.hash(password, 10);
+    data.password = await bcrypt.hash(password, 12);
   }
 
-  return prisma.user.update({
+  const updatedUser = await prisma.user.update({
     where: { id },
     data,
     select: {
@@ -76,6 +77,14 @@ const updateUser = async (id, { name, email, password, role, active }, currentUs
       twoFactorEnabled: true,
     }
   });
+  const securityChanged = active === false
+    || Boolean(password)
+    || (role !== undefined && role !== current.role)
+    || (email !== undefined && email.toLowerCase().trim() !== current.email);
+  if (securityChanged) {
+    await authSessionsService.revokeUserSessions(id, 'Conta ou permissões alteradas pelo Gestor');
+  }
+  return updatedUser;
 };
 
 const deleteUser = async (id, currentUserId) => {
@@ -112,13 +121,15 @@ const changePassword = async ({ userId, currentPassword, newPassword }) => {
     throw error;
   }
 
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
   await prisma.user.update({
     where: { id: userId },
     data: { password: hashedPassword }
   });
 
-  return { message: 'Senha alterada com sucesso!' };
+  await authSessionsService.revokeUserSessions(userId, 'Senha alterada');
+
+  return { message: 'Senha alterada. Entre novamente com a nova senha.' };
 };
 
 module.exports = {

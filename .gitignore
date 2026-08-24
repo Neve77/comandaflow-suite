@@ -31,6 +31,7 @@ dist/
 *.tgz
 build/*
 !build/icon.ico
+!build/icon.png
 !build/license-public.pem
 
 # Editor e sistema operacional

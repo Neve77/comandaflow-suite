@@ -47,7 +47,7 @@ const loginWithPin = async ({ pin, ip, device }) => {
 
 const loginWithCredentials = async ({ email, password, ip, device }) => {
   const authService = require('./auth.service');
-  const result = await authService.login(email, password);
+  const result = await authService.login(email, password, undefined, { ip, device });
   if (result.user.role !== WAITER_ROLE) {
     const error = new Error('Acesso mobile permitido apenas para garcom');
     error.status = 403;

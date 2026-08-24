@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './providers/AuthContext';
 import api from '../shared/services/api';
@@ -24,6 +24,7 @@ const EventsPage = lazy(() => import('../features/events/EventsPage'));
 const IntelligencePage = lazy(() => import('../features/intelligence/IntelligencePage'));
 const DevicesPage = lazy(() => import('../features/devices/DevicesPage'));
 const BackupPage = lazy(() => import('../features/backup/BackupPage'));
+const RestaurantSupportPage = lazy(() => import('../features/support/RestaurantSupportPage'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading, systemLoading } = useAuth();
@@ -33,6 +34,7 @@ function ProtectedRoute({ children }) {
 
 function LicenseGate({ children }) {
   const { system } = useAuth();
+  const location = useLocation();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(!system.subscriptionManager);
 
@@ -59,7 +61,8 @@ function LicenseGate({ children }) {
   }, [loadStatus]);
 
   if (loading) return <FullScreenLoading />;
-  if (!system.subscriptionManager && !status?.valid) {
+  const supportAvailable = location.pathname === '/support' && status?.onlineManaged;
+  if (!system.subscriptionManager && !status?.valid && !supportAvailable) {
     return <LicenseActivationPage status={status} onActivated={loadStatus} />;
   }
   return children;
@@ -95,6 +98,7 @@ export default function App() {
               <Route path="/" element={<ProtectedRoute><LicenseGate><Layout /></LicenseGate></ProtectedRoute>}>
                 <Route index element={<HomeRedirect />} />
                 <Route path="subscriptions" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
+                <Route path="subscriptions/:section" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
                 <Route path="dashboard" element={<RestaurantOnly><DashboardPage /></RestaurantOnly>} />
                 <Route path="comanda" element={<RestaurantOnly><ComandaPage /></RestaurantOnly>} />
                 <Route path="mesas" element={<RestaurantOnly><MesasPage /></RestaurantOnly>} />
@@ -110,6 +114,7 @@ export default function App() {
                 <Route path="intelligence" element={<RestaurantOnly><IntelligencePage /></RestaurantOnly>} />
                 <Route path="devices" element={<RestaurantOnly><DevicesPage /></RestaurantOnly>} />
                 <Route path="backup" element={<RestaurantOnly><BackupPage /></RestaurantOnly>} />
+                <Route path="support" element={<RestaurantOnly><RestaurantSupportPage /></RestaurantOnly>} />
               </Route>
               <Route path="*" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
             </Routes>

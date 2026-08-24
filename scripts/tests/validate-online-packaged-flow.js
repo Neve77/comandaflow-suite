@@ -140,6 +140,29 @@ async function main() {
   await requestJson(`http://127.0.0.1:${clientPort}/license/activate`, {
     method: 'POST', body: { licenseKey: issued.subscription.licenseKey },
   });
+  const openedTicket = await requestJson(`http://127.0.0.1:${clientPort}/license/support/tickets`, {
+    method: 'POST', token: clientLogin.token,
+    body: {
+      subject: 'Chamado do aplicativo empacotado',
+      description: 'Validacao ponta a ponta do suporte entre Restaurante e Gestor.',
+      priority: 'alta',
+    },
+  });
+  const managerTickets = await requestJson(`http://127.0.0.1:${managerPort}/manager/tickets`, { token: managerLogin.token });
+  if (!managerTickets.tickets.some((ticket) => ticket.id === openedTicket.ticket.id)) {
+    throw new Error('O chamado do Restaurante não chegou ao Gestor empacotado.');
+  }
+  await requestJson(`http://127.0.0.1:${managerPort}/manager/tickets/${openedTicket.ticket.id}/comments`, {
+    method: 'POST', token: managerLogin.token, body: { body: 'Resposta do Gestor no teste empacotado.' },
+  });
+  const clientTickets = await requestJson(`http://127.0.0.1:${clientPort}/license/support/tickets`, { token: clientLogin.token });
+  const answeredTicket = clientTickets.tickets.find((ticket) => ticket.id === openedTicket.ticket.id);
+  if (!answeredTicket?.comments.some((comment) => comment.body.includes('Resposta do Gestor'))) {
+    throw new Error('A resposta do Gestor não voltou ao Restaurante empacotado.');
+  }
+  await requestJson(`http://127.0.0.1:${clientPort}/license/support/tickets/${openedTicket.ticket.id}/comments`, {
+    method: 'POST', token: clientLogin.token, body: { body: 'Resposta do Restaurante no teste empacotado.' },
+  });
   const available = await requestJson(`http://127.0.0.1:${clientPort}/updates/check`, {
     method: 'POST', token: clientLogin.token,
   });
@@ -159,7 +182,7 @@ async function main() {
     throw new Error(`Download ponta a ponta nao foi validado: ${JSON.stringify(downloadStatus)}`);
   }
 
-  console.log('[PACKAGE ONLINE] Gestor publicou e cliente baixou uma atualizacao assinada com sucesso.');
+  console.log('[PACKAGE ONLINE] Suporte bidirecional e atualização assinada aprovados entre Gestor e Restaurante.');
 }
 
 main().catch((error) => {

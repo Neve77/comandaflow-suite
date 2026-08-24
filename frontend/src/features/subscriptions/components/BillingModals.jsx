@@ -3,7 +3,17 @@ import { CheckCircle2, History, X } from 'lucide-react';
 import { formatDate, formatMoney } from '../subscription-utils';
 
 function Modal({ title, subtitle, onClose, children }) {
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl"><header className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-lg font-extrabold text-slate-900">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div><button className="btn-icon" onClick={onClose}><X size={19} /></button></header>{children}</section></div>;
+  return (
+    <div className="manager-modal-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className="manager-modal-card flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-label={title}>
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 p-5">
+          <div className="min-w-0"><h2 className="text-lg font-extrabold text-slate-900">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>
+          <button type="button" className="btn-icon shrink-0" aria-label="Fechar" onClick={onClose}><X size={19} /></button>
+        </header>
+        <div className="manager-modal-body overflow-y-auto">{children}</div>
+      </section>
+    </div>
+  );
 }
 
 const dateInput = (value) => {

@@ -6,17 +6,21 @@ import {
   Globe2,
   KeyRound,
   MessageSquare,
+  Search,
   UploadCloud,
   X,
 } from 'lucide-react';
 import { emptySubscriber, formatDate, planDays } from '../subscription-utils';
 
-function Modal({ title, subtitle, onClose, children }) {
+function Modal({ title, subtitle, onClose, children, wide = false }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <section className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        <header className="flex items-start justify-between border-b border-slate-100 p-5"><div><h2 className="text-lg font-extrabold text-slate-900">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div><button className="btn-icon" onClick={onClose}><X size={19} /></button></header>
-        {children}
+    <div className="manager-modal-overlay fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <section className={`manager-modal-card flex w-full ${wide ? 'max-w-3xl' : 'max-w-2xl'} flex-col overflow-hidden rounded-2xl bg-white shadow-2xl`} role="dialog" aria-modal="true" aria-label={title}>
+        <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 p-5">
+          <div className="min-w-0"><h2 className="text-lg font-extrabold text-slate-900">{title}</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p></div>
+          <button type="button" className="btn-icon shrink-0" aria-label="Fechar" onClick={onClose}><X size={19} /></button>
+        </header>
+        <div className="manager-modal-body overflow-y-auto">{children}</div>
       </section>
     </div>
   );
@@ -136,15 +140,15 @@ export function ServerSettingsModal({ initial, onClose, onSave }) {
     event.preventDefault(); setSaving(true); setError('');
     try { await onSave(form); } catch (saveError) { setError(saveError.message); } finally { setSaving(false); }
   };
-  return <Modal title="Servidor online" subtitle="Este endereco conecta os aplicativos dos clientes ao Gestor aberto no seu computador." onClose={onClose}>
+  return <Modal title="Servidor online" subtitle="Este endereço conecta os Restaurantes ao Gestor aberto no seu computador." onClose={onClose}>
     <form onSubmit={submit} className="grid gap-4 p-5 sm:grid-cols-2">
-      <div className="sm:col-span-2"><Field label="Endereco publico fixo *"><input type="url" className="input-field" placeholder="https://assinaturas.seudominio.com" value={form.publicServerUrl} onChange={set('publicServerUrl')} required /></Field></div>
-      <Field label="Tolerancia sem internet (horas)"><input type="number" min="1" max="168" className="input-field" value={form.offlineGraceHours} onChange={set('offlineGraceHours')} required /></Field>
-      <Field label="Verificacao de seguranca (minutos)"><input type="number" min="1" max="60" className="input-field" value={form.syncIntervalMinutes} onChange={set('syncIntervalMinutes')} required /></Field>
+      <div className="sm:col-span-2"><Field label="Endereço HTTPS público do Gestor *"><input type="url" className="input-field" placeholder="https://assinaturas.seudominio.com" value={form.publicServerUrl} onChange={set('publicServerUrl')} required /></Field></div>
+      <Field label="Tolerância sem internet (horas)"><input type="number" min="1" max="168" className="input-field" value={form.offlineGraceHours} onChange={set('offlineGraceHours')} required /></Field>
+      <Field label="Intervalo de sincronização (minutos)"><input type="number" min="1" max="60" className="input-field" value={form.syncIntervalMinutes} onChange={set('syncIntervalMinutes')} required /></Field>
       <Field label="Tolerância após vencimento (dias)"><input type="number" min="0" max="90" className="input-field" value={form.paymentGraceDays} onChange={set('paymentGraceDays')} required /></Field>
       <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"><input type="checkbox" className="mt-1" checked={Boolean(form.automaticSuspensionEnabled)} onChange={(event) => setForm((value) => ({ ...value, automaticSuspensionEnabled: event.target.checked }))} /><span><strong>Suspensão automática por inadimplência</strong><br /><span className="text-xs">Bloqueia o cliente quando uma cobrança ultrapassar o período de tolerância.</span></span></label>
-      <div className="sm:col-span-2"><Field label="Mensagem padrao de suspensao"><textarea className="input-field min-h-24" maxLength="600" value={form.defaultSuspensionMessage} onChange={set('defaultSuspensionMessage')} required /></Field></div>
-      <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Cole aqui o endereco <strong>HTTPS publico</strong>, como https://assinaturas.seudominio.com. Dentro do servico de tunel, ele deve apontar para <strong>http://127.0.0.1:3012</strong>. Nunca cole 127.0.0.1 neste campo.</div>
+      <div className="sm:col-span-2"><Field label="Mensagem padrão de suspensão"><textarea className="input-field min-h-24" maxLength="600" value={form.defaultSuspensionMessage} onChange={set('defaultSuspensionMessage')} required /></Field></div>
+      <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-5 text-slate-600"><p className="font-bold text-slate-700">Como preencher corretamente</p><ol className="mt-1 list-decimal space-y-1 pl-4"><li>Crie no serviço de túnel um endereço HTTPS fixo.</li><li>Faça esse túnel encaminhar para <strong>http://127.0.0.1:3012</strong> neste computador.</li><li>Cole acima somente o endereço público, por exemplo <strong>https://assinaturas.seudominio.com</strong>.</li></ol><p className="mt-2 font-semibold text-rose-700">Nunca informe 127.0.0.1 aos Restaurantes: esse endereço funciona apenas dentro do computador do Gestor.</p></div>
       {error && <div className="sm:col-span-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
       <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2"><button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button><button className="btn-primary bg-emerald-600 hover:bg-emerald-700" disabled={saving}><Globe2 size={17} />{saving ? 'Salvando...' : 'Salvar servidor'}</button></div>
     </form>
@@ -159,25 +163,41 @@ export function PublishUpdateModal({ current, managerCurrent, initialProduct = '
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
+  const [pilotSearch, setPilotSearch] = useState('');
+  const activeSubscribers = subscribers.filter((item) => item.status === 'ativo');
+  const visibleSubscribers = activeSubscribers.filter((item) => {
+    const term = pilotSearch.trim().toLowerCase();
+    return !term || item.businessName.toLowerCase().includes(term) || item.email?.toLowerCase().includes(term);
+  });
+  const togglePilot = (subscriberId) => setForm((value) => ({
+    ...value,
+    pilotSubscriberIds: value.pilotSubscriberIds.includes(subscriberId)
+      ? value.pilotSubscriberIds.filter((id) => id !== subscriberId)
+      : [...value.pilotSubscriberIds, subscriberId],
+  }));
+  const selectVisiblePilots = () => setForm((value) => ({
+    ...value,
+    pilotSubscriberIds: [...new Set([...value.pilotSubscriberIds, ...visibleSubscribers.map((item) => item.id)])],
+  }));
   const submit = async (event) => {
     event.preventDefault(); setSaving(true); setError(''); setProgress(0);
     if (!form.file) { setError('Selecione o instalador .exe correspondente.'); setSaving(false); return; }
     if (form.product === 'client' && form.rollout === 'pilot' && !form.pilotSubscriberIds.length) { setError('Selecione pelo menos um cliente de teste.'); setSaving(false); return; }
     try { await onPublish(form, setProgress); } catch (publishError) { setError(publishError.message); } finally { setSaving(false); }
   };
-  return <Modal title="Publicar atualização" subtitle="Envie separadamente o instalador do Gestor ou dos restaurantes." onClose={onClose}>
+  return <Modal wide title="Publicar atualização" subtitle="Envie separadamente o instalador do Gestor ou dos restaurantes." onClose={onClose}>
     <form onSubmit={submit} className="grid gap-4 p-5 sm:grid-cols-2">
       <Field label="Aplicativo *"><select className="input-field" value={form.product} onChange={(event) => { const product = event.target.value; setForm((value) => ({ ...value, product, version: suggestVersion(product === 'manager' ? managerCurrent : current), file: null, rollout: product === 'client' ? value.rollout : 'all', pilotSubscriberIds: product === 'client' ? value.pilotSubscriberIds : [] })); }}><option value="client">Restaurantes</option><option value="manager">Gestor</option></select></Field>
       <Field label="Nova versão *"><input className="input-field" pattern="\d+\.\d+\.\d+" placeholder="2.4.0" value={form.version} onChange={(event) => setForm((value) => ({ ...value, version: event.target.value }))} required /></Field>
       <Field label="Instalador Windows *"><input type="file" accept=".exe,application/vnd.microsoft.portable-executable" className="input-field text-xs" onChange={(event) => setForm((value) => ({ ...value, file: event.target.files?.[0] || null }))} required /></Field>
       <div className="sm:col-span-2"><Field label="O que mudou nesta versão *"><textarea className="input-field min-h-28" maxLength="4000" placeholder={'Exemplo:\n- Nova tela de pedidos\n- Correção na impressão'} value={form.releaseNotes} onChange={(event) => setForm((value) => ({ ...value, releaseNotes: event.target.value }))} required /></Field></div>
       {form.product === 'client' && <Field label="Liberação inicial"><select className="input-field" value={form.rollout} onChange={(event) => setForm((value) => ({ ...value, rollout: event.target.value }))}><option value="pilot">Somente clientes de teste</option><option value="all">Todos os clientes</option></select></Field>}
-      {form.product === 'client' && form.rollout === 'pilot' && <div className="sm:col-span-2"><Field label="Clientes de teste *"><select multiple className="input-field min-h-28" value={form.pilotSubscriberIds} onChange={(event) => setForm((value) => ({ ...value, pilotSubscriberIds: [...event.target.selectedOptions].map((option) => option.value) }))}>{subscribers.filter((item) => item.status === 'ativo').map((item) => <option key={item.id} value={item.id}>{item.businessName}</option>)}</select></Field><p className="mt-1 text-xs text-slate-500">Use Ctrl para selecionar mais de um cliente.</p></div>}
+      {form.product === 'client' && form.rollout === 'pilot' && <div className="sm:col-span-2"><Field label="Clientes de teste *"><div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><div className="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row sm:items-center"><label className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} /><input className="input-field bg-white pl-9" value={pilotSearch} onChange={(event) => setPilotSearch(event.target.value)} placeholder="Buscar cliente" /></label><span className="shrink-0 text-xs font-bold text-slate-500">{form.pilotSubscriberIds.length} selecionado(s)</span></div><div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 text-xs"><button type="button" className="font-bold text-blue-700 hover:underline" onClick={selectVisiblePilots} disabled={!visibleSubscribers.length}>Selecionar visíveis</button><button type="button" className="font-bold text-slate-500 hover:underline" onClick={() => setForm((value) => ({ ...value, pilotSubscriberIds: [] }))} disabled={!form.pilotSubscriberIds.length}>Limpar seleção</button></div><div className="max-h-44 space-y-1 overflow-y-auto p-2">{visibleSubscribers.map((item) => <label key={item.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-sm transition-colors ${form.pilotSubscriberIds.includes(item.id) ? 'border-blue-200 bg-blue-50' : 'border-transparent bg-white hover:border-slate-200'}`}><input type="checkbox" className="h-4 w-4 shrink-0 accent-blue-600" checked={form.pilotSubscriberIds.includes(item.id)} onChange={() => togglePilot(item.id)} /><span className="min-w-0"><strong className="block truncate text-slate-900">{item.businessName}</strong><small className="block truncate font-normal normal-case tracking-normal text-slate-500">{item.email}</small></span></label>)}{!visibleSubscribers.length && <p className="p-5 text-center text-xs font-semibold text-slate-500">Nenhum cliente ativo encontrado.</p>}</div></div></Field></div>}
       {form.product === 'client' && <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 sm:col-span-2"><input type="checkbox" className="mt-1" checked={form.mandatory} onChange={(event) => setForm((value) => ({ ...value, mandatory: event.target.checked }))} /><span><strong>Atualização obrigatória</strong><br /><span className="text-xs">O restaurante não poderá fechar o aviso sem instalar.</span></span></label>}
       <div className="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-800">Selecione <strong>{form.product === 'manager' ? `ComandaFlow-Gestor-Setup-${form.version || 'versão'}.exe` : `ComandaFlow-Setup-${form.version || 'versão'}.exe`}</strong>. {form.product === 'manager' ? 'Depois da publicação, use o botão Instalar e reiniciar no cartão do Gestor.' : 'O Gestor precisa permanecer aberto durante o download dos restaurantes.'}</div>
       {saving && <div className="sm:col-span-2"><div className="mb-2 flex justify-between text-xs font-bold text-slate-600"><span>Enviando e verificando instalador...</span><span>{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-blue-600 transition-all" style={{ width: `${progress}%` }} /></div></div>}
       {error && <div className="sm:col-span-2 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-      <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 sm:col-span-2"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button><button className="btn-primary bg-blue-600 hover:bg-blue-700" disabled={saving}><UploadCloud size={17} />{saving ? 'Publicando...' : 'Publicar atualização'}</button></div>
+      <div className="manager-publish-actions sticky bottom-0 z-10 -mx-5 -mb-5 flex justify-end gap-3 border-t border-slate-200 bg-white p-4 sm:col-span-2 sm:px-5"><button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button><button className="btn-primary bg-blue-600 hover:bg-blue-700" disabled={saving}><UploadCloud size={17} />{saving ? 'Publicando...' : 'Publicar atualização'}</button></div>
     </form>
   </Modal>;
 }

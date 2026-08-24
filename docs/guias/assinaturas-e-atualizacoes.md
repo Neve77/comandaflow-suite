@@ -1,9 +1,9 @@
-# ComandaFlow 2.4.0 — assinaturas e atualizações online
+# ComandaFlow 2.4.5 — assinaturas e atualizações online
 
 Esta versão gera dois aplicativos Windows separados:
 
-- `ComandaFlow-Setup-2.4.0.exe`: aplicativo instalado no restaurante assinante.
-- `ComandaFlow-Gestor-Setup-2.4.0.exe`: painel privado usado para cadastrar assinantes e publicar atualizações.
+- `ComandaFlow-Setup-2.4.5.exe`: aplicativo instalado no restaurante assinante.
+- `ComandaFlow-Gestor-Setup-2.4.5.exe`: painel privado usado para cadastrar assinantes e publicar atualizações.
 
 ## Como o controle online funciona
 
@@ -26,6 +26,10 @@ Não é necessário contratar um servidor separado, mas estas condições são o
 
 Se o Gestor ficar indisponível, o restaurante continua funcionando pelo período de tolerância configurado (24 horas por padrão). Depois disso, o cliente pede conexão para validar a assinatura. Para usar o Gestor somente de vez em quando, aumente a tolerância, sabendo que uma tolerância maior também aumenta o tempo possível de uso sem contato com seu PC.
 
+O intervalo definido em **Configurar servidor** é enviado pelo Gestor a todos os Restaurantes, inclusive aos que já possuem uma chave emitida. Quando uma conexão falha, o Restaurante tenta novamente em intervalos progressivos de 5, 15, 30, 60, 120 e 300 segundos. A sincronização também é solicitada imediatamente quando a internet volta ou quando a janela do aplicativo recebe foco.
+
+No Restaurante, o indicador lateral distingue **Sem internet**, **Reconectando ao Gestor** e **Sincronizado com Gestor**. No Gestor, o monitoramento é atualizado a cada 15 segundos e mostra o horário real do último contato, a versão e os dispositivos ativos.
+
 ## Primeira configuração do Gestor
 
 1. Instale e abra o **ComandaFlow Gestor** somente no computador do proprietário.
@@ -40,7 +44,7 @@ Não envie o instalador do Gestor a clientes. Ele contém a chave privada usada 
 
 ## Primeira configuração do restaurante
 
-1. O cliente instala `ComandaFlow-Setup-2.4.0.exe`.
+1. O cliente instala `ComandaFlow-Setup-2.4.5.exe`.
 2. No primeiro acesso, cria o administrador local do restaurante.
 3. O aplicativo começa com 14 dias de avaliação.
 4. Em **Configurações > Assinatura do ComandaFlow**, cola a chave `CF3-...` e ativa.
@@ -65,7 +69,7 @@ Chaves antigas `CF2-...` continuam funcionando offline, mas não aceitam bloquei
 
 ## Publicar atualização para os restaurantes
 
-1. Gere ou receba o novo instalador de clientes, por exemplo `ComandaFlow-Setup-2.4.0.exe`.
+1. Gere ou receba o novo instalador de clientes, por exemplo `ComandaFlow-Setup-2.4.5.exe`.
 2. Abra o Gestor e clique em **Publicar nova versão**.
 3. Informe a mesma versão do arquivo, descreva as mudanças e selecione o instalador `.exe`.
 4. Escolha se a atualização será opcional ou obrigatória.
@@ -98,6 +102,16 @@ Importante: a linha 2.3 é a primeira que contém o atualizador. Restaurantes qu
 
 A atualização 2.3.1 → 2.4.0 do Gestor precisa ser instalada manualmente uma única vez, pois o autoatualizador do Gestor começa na 2.4.0. As próximas versões podem ser publicadas e instaladas no próprio painel.
 
+## Suporte integrado do Restaurante
+
+No aplicativo do Restaurante, abra **Suporte** no menu lateral para criar um chamado, escolher a prioridade, acompanhar o andamento e conversar com a equipe do Gestor. A tela consulta novas respostas automaticamente a cada 30 segundos e também possui atualização manual.
+
+Os chamados trafegam pelo mesmo endereço HTTPS configurado na licença. Cada solicitação é validada pela chave assinada e pela identificação do computador ativado, impedindo que um cliente consulte chamados de outro assinante. O computador do Gestor, o aplicativo Gestor e o túnel precisam estar ligados para enviar ou receber respostas.
+
+Quando o acesso é suspenso ou cancelado remotamente, o botão **Falar com o suporte** continua disponível na tela de assinatura para que o restaurante consiga pedir ajuda. Chamados fechados ficam somente para consulta; uma nova necessidade deve ser registrada em outro chamado.
+
+No Gestor, use **Suporte** para pesquisar por restaurante ou assunto, filtrar chamados em andamento ou concluídos, alterar status e prioridade e responder ao cliente.
+
 ## Notificações e modo escuro
 
 O sino do Gestor mostra cobranças vencidas, clientes offline, chamados pendentes, assinaturas próximas do vencimento e atualizações pausadas ou retiradas. No restaurante, ele reúne mensagens enviadas pelo Gestor, avisos da assinatura e o estado da atualização. Mensagens confirmadas pelo restaurante são registradas no servidor; os demais avisos podem ser marcados como lidos localmente.
@@ -126,6 +140,8 @@ No painel do Gestor, os funcionários podem ser cadastrados com estes perfis:
 
 Cada funcionário pode ativar o segundo fator com um aplicativo autenticador compatível com TOTP. Guarde os códigos de recuperação apresentados durante a configuração. A auditoria registra alterações autenticadas, resultado, usuário, endereço IP e dispositivo, removendo senhas, tokens, chaves de licença e códigos de segurança do registro.
 
+A área **Quem acessou o Gestor** mostra a pessoa, horário do login, última atividade, IP e dispositivo. O proprietário pode encerrar qualquer sessão remotamente. Desativar uma conta, trocar sua senha ou mudar suas permissões revoga os acessos existentes; cada pessoa deverá entrar novamente. Tentativas de login recusadas também aparecem na auditoria. Não compartilhe a conta do proprietário nem o instalador privado do Gestor: crie uma conta individual para cada integrante da equipe.
+
 Como referência operacional para controles administrativos e técnicos, consulte o [Guia de Segurança da Informação para Agentes de Tratamento de Pequeno Porte da ANPD](https://www.gov.br/anpd/pt-br/assuntos/noticias/anpd-publica-guia-de-seguranca-para-agentes-de-tratamento-de-pequeno-porte).
 
 ## Gerar novamente os instaladores
@@ -138,8 +154,8 @@ npm run release:windows
 
 Saídas:
 
-- `dist\client\ComandaFlow-Setup-2.4.0.exe`
-- `dist\manager\ComandaFlow-Gestor-Setup-2.4.0.exe`
+- `dist\client\ComandaFlow-Setup-2.4.5.exe`
+- `dist\manager\ComandaFlow-Gestor-Setup-2.4.5.exe`
 
 Testes principais:
 

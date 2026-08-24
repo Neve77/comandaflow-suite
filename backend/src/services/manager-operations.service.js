@@ -1,4 +1,5 @@
 const prisma = require('../infra/prisma/client');
+const managerSettings = require('./manager-settings.service');
 
 const httpError = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -74,19 +75,27 @@ const notifications = async () => {
   return items;
 };
 
-const monitoring = async () => {
-  const subscribers = await prisma.subscriber.findMany({
-    include: {
-      subscriptions: {
-        where: { status: 'ativo' },
-        orderBy: { createdAt: 'desc' },
-        include: { installations: { where: { active: true }, orderBy: { lastSeenAt: 'desc' } } },
+const monitoringSnapshot = async () => {
+  const [subscribers, settings] = await Promise.all([
+    prisma.subscriber.findMany({
+      include: {
+        subscriptions: {
+          where: { status: 'ativo' },
+          orderBy: { createdAt: 'desc' },
+          include: { installations: { where: { active: true }, orderBy: { lastSeenAt: 'desc' } } },
+        },
       },
-    },
-    orderBy: { businessName: 'asc' },
-  });
-  const onlineAfter = Date.now() - 3 * 60 * 1000;
-  return subscribers.map((subscriber) => {
+      orderBy: { businessName: 'asc' },
+    }),
+    managerSettings.get(),
+  ]);
+  const configuredIntervalSeconds = Math.max(
+    60,
+    Math.min(3600, Number(settings.syncIntervalMinutes || 1) * 60)
+  );
+  const onlineWindowSeconds = Math.max(180, Math.ceil(configuredIntervalSeconds * 2.5));
+  const onlineAfter = Date.now() - onlineWindowSeconds * 1000;
+  const clients = subscribers.map((subscriber) => {
     const subscription = subscriber.subscriptions[0] || null;
     const installations = subscription?.installations || [];
     const lastSyncAt = installations[0]?.lastSeenAt || null;
@@ -110,7 +119,14 @@ const monitoring = async () => {
       })),
     };
   });
+  return {
+    clients,
+    generatedAt: new Date().toISOString(),
+    onlineWindowSeconds,
+  };
 };
+
+const monitoring = async () => (await monitoringSnapshot()).clients;
 
 const listMessages = () => prisma.managerMessage.findMany({
   include: {
@@ -168,13 +184,22 @@ const acknowledgeMessage = async (messageId, subscriberId, installationId) => {
   });
 };
 
+const ticketInclude = {
+  subscriber: { select: { id: true, businessName: true, email: true, phone: true } },
+  comments: { orderBy: { createdAt: 'asc' } },
+};
+
 const listTickets = () => prisma.supportTicket.findMany({
-  include: {
-    subscriber: { select: { id: true, businessName: true, email: true, phone: true } },
-    comments: { orderBy: { createdAt: 'asc' } },
-  },
+  include: ticketInclude,
   orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
   take: 250,
+});
+
+const listSubscriberTickets = (subscriberId) => prisma.supportTicket.findMany({
+  where: { subscriberId },
+  include: { comments: { orderBy: { createdAt: 'asc' } } },
+  orderBy: { updatedAt: 'desc' },
+  take: 100,
 });
 
 const createTicket = async (data, actor) => {
@@ -190,6 +215,22 @@ const createTicket = async (data, actor) => {
     },
   });
 };
+
+const createSubscriberTicket = async (subscriberId, data, authorName) => prisma.supportTicket.create({
+  data: {
+    subscriberId,
+    subject: data.subject.trim(),
+    description: data.description.trim(),
+    priority: data.priority,
+    comments: {
+      create: {
+        body: 'Chamado aberto pelo aplicativo do Restaurante.',
+        authorName: `Restaurante · ${String(authorName || 'Administrador').trim()}`,
+      },
+    },
+  },
+  include: { comments: { orderBy: { createdAt: 'asc' } } },
+});
 
 const updateTicket = async (id, data) => {
   const existing = await prisma.supportTicket.findUnique({ where: { id }, select: { id: true } });
@@ -207,19 +248,55 @@ const updateTicket = async (id, data) => {
 const commentTicket = async (ticketId, body, actor) => {
   const existing = await prisma.supportTicket.findUnique({ where: { id: ticketId }, select: { id: true } });
   if (!existing) throw httpError('Chamado não encontrado.', 404);
-  return prisma.supportTicketComment.create({
-    data: { ticketId, body: body.trim(), authorName: actor?.name || actor?.email || 'Gestor' },
+  const [, comment] = await prisma.$transaction([
+    prisma.supportTicket.update({ where: { id: ticketId }, data: { updatedAt: new Date() } }),
+    prisma.supportTicketComment.create({
+      data: { ticketId, body: body.trim(), authorName: actor?.name || actor?.email || 'Gestor' },
+    }),
+  ]);
+  return comment;
+};
+
+const commentSubscriberTicket = async (ticketId, subscriberId, body, authorName) => {
+  const existing = await prisma.supportTicket.findFirst({
+    where: { id: ticketId, subscriberId },
+    select: { id: true, status: true },
   });
+  if (!existing) throw httpError('Chamado não encontrado.', 404);
+  if (existing.status === 'fechado') throw httpError('Este chamado está fechado. Abra um novo chamado para continuar.', 409);
+
+  const reopen = existing.status === 'resolvido';
+  const [, comment] = await prisma.$transaction([
+    prisma.supportTicket.update({
+      where: { id: ticketId },
+      data: {
+        updatedAt: new Date(),
+        ...(reopen ? { status: 'aberto', resolvedAt: null } : {}),
+      },
+    }),
+    prisma.supportTicketComment.create({
+      data: {
+        ticketId,
+        body: body.trim(),
+        authorName: `Restaurante · ${String(authorName || 'Administrador').trim()}`,
+      },
+    }),
+  ]);
+  return comment;
 };
 
 module.exports = {
   acknowledgeMessage,
+  commentSubscriberTicket,
   commentTicket,
+  createSubscriberTicket,
   createTicket,
   deactivateMessage,
   listMessages,
+  listSubscriberTickets,
   listTickets,
   monitoring,
+  monitoringSnapshot,
   notifications,
   pendingMessages,
   sendMessage,

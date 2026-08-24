@@ -1,0 +1,127 @@
+import {
+  BellRing,
+  CircleDollarSign,
+  Headphones,
+  LayoutDashboard,
+  Megaphone,
+  MonitorSmartphone,
+  ServerCog,
+  ShieldCheck,
+  UsersRound,
+} from 'lucide-react';
+
+export const managerNavigation = [
+  {
+    key: 'overview',
+    to: '/subscriptions',
+    end: true,
+    group: 'Visão geral',
+    label: 'Painel geral',
+    title: 'Visão geral do Gestor',
+    description: 'Acompanhe assinaturas, alertas e atalhos para toda a operação.',
+    icon: LayoutDashboard,
+    permission: 'subscriptions:read',
+    tone: 'bg-emerald-50 text-emerald-700',
+  },
+  {
+    key: 'clients',
+    to: '/subscriptions/clients',
+    group: 'Operação',
+    label: 'Assinantes',
+    title: 'Assinantes e planos',
+    description: 'Cadastre clientes, emita chaves, suspenda, reative ou cancele acessos.',
+    icon: UsersRound,
+    permission: 'subscriptions:read',
+    tone: 'bg-blue-50 text-blue-700',
+  },
+  {
+    key: 'billing',
+    to: '/subscriptions/billing',
+    group: 'Operação',
+    label: 'Financeiro',
+    title: 'Financeiro e cobranças',
+    description: 'Controle mensalidades, recebimentos, inadimplência e recorrências.',
+    icon: CircleDollarSign,
+    permission: 'billing:read',
+    tone: 'bg-amber-50 text-amber-700',
+  },
+  {
+    key: 'monitoring',
+    to: '/subscriptions/monitoring',
+    group: 'Operação',
+    label: 'Monitoramento',
+    title: 'Monitoramento dos Restaurantes',
+    description: 'Consulte conexão, última sincronização, versão e dispositivos ativos.',
+    icon: MonitorSmartphone,
+    permission: 'monitoring:read',
+    tone: 'bg-cyan-50 text-cyan-700',
+  },
+  {
+    key: 'messages',
+    to: '/subscriptions/messages',
+    group: 'Atendimento',
+    label: 'Mensagens',
+    title: 'Mensagens aos Restaurantes',
+    description: 'Envie comunicados individuais, por grupo ou para todos os clientes.',
+    icon: Megaphone,
+    permission: 'messages:read',
+    tone: 'bg-violet-50 text-violet-700',
+  },
+  {
+    key: 'support',
+    to: '/subscriptions/support',
+    group: 'Atendimento',
+    label: 'Suporte',
+    title: 'Chamados de suporte',
+    description: 'Organize solicitações, prioridades, andamento e respostas da equipe.',
+    icon: Headphones,
+    permission: 'support:read',
+    tone: 'bg-orange-50 text-orange-700',
+  },
+  {
+    key: 'updates',
+    to: '/subscriptions/updates',
+    group: 'Sistema',
+    label: 'Atualizações',
+    title: 'Central de atualizações',
+    description: 'Publique, teste, pause ou retire versões do Gestor e dos Restaurantes.',
+    icon: BellRing,
+    permission: 'updates:read',
+    tone: 'bg-indigo-50 text-indigo-700',
+  },
+  {
+    key: 'security',
+    to: '/subscriptions/security',
+    group: 'Sistema',
+    label: 'Equipe e segurança',
+    title: 'Equipe, segurança e auditoria',
+    description: 'Gerencie funcionários, permissões, autenticação em dois fatores e auditoria.',
+    icon: ShieldCheck,
+    authenticated: true,
+    tone: 'bg-emerald-50 text-emerald-700',
+  },
+  {
+    key: 'settings',
+    to: '/subscriptions/settings',
+    group: 'Sistema',
+    label: 'Servidor online',
+    title: 'Servidor e sincronização',
+    description: 'Configure o endereço público, intervalos, tolerância e bloqueio automático.',
+    icon: ServerCog,
+    permission: 'subscriptions:write',
+    tone: 'bg-slate-100 text-slate-700',
+  },
+];
+
+export const canAccessManagerItem = (item, user) => {
+  if (!user) return false;
+  if (item.authenticated) return true;
+  return user.role === 'proprietario'
+    || user.role === 'administrador'
+    || user.permissions?.includes('*')
+    || user.permissions?.includes(item.permission);
+};
+
+export const managerItemForPath = (pathname) => managerNavigation
+  .filter((item) => pathname === item.to || (!item.end && pathname.startsWith(`${item.to}/`)))
+  .sort((a, b) => b.to.length - a.to.length)[0] || managerNavigation[0];

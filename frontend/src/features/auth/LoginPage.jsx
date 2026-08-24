@@ -7,6 +7,7 @@ import {
   EyeOff,
   LockKeyhole,
   Mail,
+  ShieldCheck,
   Smartphone,
   UserRound,
   Zap,

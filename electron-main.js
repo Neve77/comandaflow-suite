@@ -52,7 +52,11 @@ try {
 }
 
 function writeLog(prefix, msg) {
-  const line = `[${new Date().toISOString()}] ${prefix} ${msg}\n`;
+  const safeMessage = String(msg || '')
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, 'Bearer [PROTEGIDO]')
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[TOKEN_PROTEGIDO]')
+    .replace(/("?(?:password|senha|token|secret)"?\s*[:=]\s*)[^,\s}]+/gi, '$1[PROTEGIDO]');
+  const line = `[${new Date().toISOString()}] ${prefix} ${safeMessage}\n`;
   try { if (logStream) logStream.write(line); } catch (e) {}
   try { process.stdout.write(line); } catch (e) {}
 }
@@ -168,30 +172,35 @@ const backendPort = process.env.PORT || (managerMode ? '3012' : '3002');
 const startUrl = process.env.ELECTRON_START_URL;
 const isDev = Boolean(startUrl);
 
-const iconPath = path.join(__dirname, 'frontend', 'dist', 'logo-icon.png');
+const iconPath = path.join(__dirname, 'build', 'icon.png');
 
 let mainWindow = null;
 
-function isBackendHealthy(port) {
+function getBackendCapabilities(port) {
   return new Promise((resolve) => {
     const request = nodeHttp.get(
       {
         hostname: '127.0.0.1',
         port,
-        path: '/health',
+        path: '/system/capabilities',
         timeout: 1200,
       },
       (response) => {
-        response.resume();
-        resolve(response.statusCode >= 200 && response.statusCode < 300);
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { body += chunk; });
+        response.on('end', () => {
+          if (response.statusCode < 200 || response.statusCode >= 300) return resolve(null);
+          try { return resolve(JSON.parse(body)); } catch { return resolve(null); }
+        });
       }
     );
 
     request.on('timeout', () => {
       request.destroy();
-      resolve(false);
+      resolve(null);
     });
-    request.on('error', () => resolve(false));
+    request.on('error', () => resolve(null));
   });
 }
 
@@ -265,6 +274,20 @@ function createWindow() {
     writeLog('[renderer][warn]', 'A interface deixou de responder.');
   });
 
+  mainWindow.webContents.on('console-message', (event, detailsOrLevel, legacyMessage, line, sourceId) => {
+    const details = detailsOrLevel && typeof detailsOrLevel === 'object'
+      ? detailsOrLevel
+      : { level: detailsOrLevel, message: legacyMessage, lineNumber: line, sourceId };
+    const isError = details.level === 'error' || Number(details.level) >= 2;
+    if (isError) {
+      writeLog('[renderer][console]', `${details.message || 'Erro sem mensagem'} (${details.sourceId || 'interface'}:${details.lineNumber || 0})`);
+    }
+  });
+
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    writeLog('[renderer][gone]', `${details.reason || 'unknown'} · código ${details.exitCode ?? 'desconhecido'}`);
+  });
+
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     writeLog('[main][err]', `Falha ao carregar URL: ${validatedURL} ${errorCode} ${errorDescription}`);
     loadErrorPage('O frontend não foi carregado corretamente. Isso pode ocorrer se o backend não estiver disponível ou se o build do frontend estiver ausente.');
@@ -291,9 +314,15 @@ function createWindow() {
 }
 
 async function startBackend() {
-  const existingBackendHealthy = await isBackendHealthy(backendPort);
-  if (existingBackendHealthy) {
-    writeLog('[backend]', `Backend ja esta ativo em http://127.0.0.1:${backendPort}; reutilizando processo existente.`);
+  const existingBackend = await getBackendCapabilities(backendPort);
+  if (existingBackend) {
+    const expectedVersion = app.getVersion();
+    const sameMode = Boolean(existingBackend.subscriptionManager) === managerMode;
+    const sameVersion = existingBackend.appVersion === expectedVersion;
+    if (!sameMode || !sameVersion) {
+      throw new Error(`Existe outra versão do ComandaFlow usando a porta ${backendPort}. Feche todas as janelas do aplicativo e abra novamente.`);
+    }
+    writeLog('[backend]', `Backend ${expectedVersion} ja esta ativo em http://127.0.0.1:${backendPort}; reutilizando processo existente.`);
     return;
   }
 
@@ -348,6 +377,7 @@ async function startBackend() {
   }
 }
 
+if (gotLock) {
 app.whenReady().then(() => {
   cleanupLegacyCacheDirectories();
 
@@ -472,3 +502,4 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+}

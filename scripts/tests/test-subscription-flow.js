@@ -34,6 +34,7 @@ const request = require(path.join(rootDir, 'backend', 'node_modules', 'supertest
 const app = require(path.join(rootDir, 'backend', 'src', 'app'));
 const prisma = require(path.join(rootDir, 'backend', 'src', 'infra', 'prisma', 'client'));
 const licenseService = require(path.join(rootDir, 'backend', 'src', 'services', 'license.service'));
+const licenseSyncService = require(path.join(rootDir, 'backend', 'src', 'services', 'license-sync.service'));
 const updateService = require(path.join(rootDir, 'backend', 'src', 'services', 'app-update.service'));
 const twoFactorService = require(path.join(rootDir, 'backend', 'src', 'services', 'two-factor.service'));
 
@@ -50,10 +51,12 @@ async function main() {
     password: 'Subscription@Test123',
   }).expect(201);
 
-  const login = await request(app).post('/auth/login').send({
-    email: 'owner@test.local',
-    password: 'Subscription@Test123',
-  }).expect(200);
+  const login = await request(app).post('/auth/login')
+    .set('User-Agent', 'ComandaFlow-Gestor-Teste/2.4.4 (Windows)')
+    .send({
+      email: 'owner@test.local',
+      password: 'Subscription@Test123',
+    }).expect(200);
   const authorization = `Bearer ${login.body.token}`;
 
   await request(app)
@@ -95,11 +98,17 @@ async function main() {
   };
   await request(app).post('/license/sync').send(syncPayload).expect(200).expect(({ body }) => {
     if (!body.allowed || body.warning) throw new Error('A assinatura ativa foi negada pelo servidor.');
+    if (body.protocolVersion !== 2 || body.syncIntervalSeconds !== 60 || body.offlineGraceHours !== 24 || !body.serverTime) {
+      throw new Error('O servidor nao informou os metadados do protocolo de sincronizacao.');
+    }
   });
 
   const monitoring = await request(app).get('/manager/monitoring').set('Authorization', authorization).expect(200);
   if (!monitoring.body.clients[0]?.online || monitoring.body.clients[0]?.appVersion !== '2.3.0' || monitoring.body.clients[0]?.activeDevices !== 1) {
     throw new Error('O monitoramento não registrou conexão, versão e dispositivo corretamente.');
+  }
+  if (!monitoring.body.generatedAt || monitoring.body.onlineWindowSeconds !== 180) {
+    throw new Error('O monitoramento nao informou a janela e o horario da sincronizacao.');
   }
 
   const sentMessage = await request(app).post('/manager/messages').set('Authorization', authorization).send({
@@ -117,6 +126,32 @@ async function main() {
   }).expect(201);
   await request(app).put(`/manager/tickets/${ticket.body.ticket.id}`).set('Authorization', authorization).send({ status: 'em_atendimento', priority: 'alta' }).expect(200);
   await request(app).post(`/manager/tickets/${ticket.body.ticket.id}/comments`).set('Authorization', authorization).send({ body: 'Atendimento iniciado.' }).expect(201);
+  const restaurantTicket = await request(app).post('/license/support/remote/tickets').send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: syncPayload.installationId,
+    actorName: 'Administrador do Restaurante',
+    subject: 'Erro ao fechar comanda',
+    description: 'O restaurante abriu este chamado pelo próprio aplicativo.',
+    priority: 'urgente',
+  }).expect(201);
+  await request(app).post('/license/support/remote/tickets/list').send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: syncPayload.installationId,
+  }).expect(200).expect(({ body }) => {
+    if (!body.tickets.some((item) => item.id === restaurantTicket.body.ticket.id)) {
+      throw new Error('O Restaurante não recebeu seus próprios chamados do Gestor.');
+    }
+  });
+  await request(app).post(`/license/support/remote/tickets/${restaurantTicket.body.ticket.id}/comments`).send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: syncPayload.installationId,
+    actorName: 'Administrador do Restaurante',
+    body: 'Informação complementar enviada pelo Restaurante.',
+  }).expect(201);
+  await request(app).post('/license/support/remote/tickets/list').send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: 'installation-not-recognized',
+  }).expect(403);
   await request(app).get('/manager/notifications').set('Authorization', authorization).expect(200).expect(({ body }) => {
     if (!body.notifications.some((notification) => notification.category === 'support')) {
       throw new Error('A central de notificações não informou o chamado em andamento.');
@@ -244,16 +279,59 @@ async function main() {
 
   const originalFetch = global.fetch;
   process.env.COMANDAFLOW_MANAGER_MODE = 'false';
+  process.env.COMANDAFLOW_INSTALLATION_ID = 'test-client-installation-001';
   licenseService.activateLicense(issued.body.subscription.licenseKey);
   global.fetch = async (url) => {
+    if (String(url).includes('/license/sync')) {
+      return new Response(JSON.stringify({
+        allowed: true,
+        warning: false,
+        status: 'ativo',
+        message: null,
+        accessUntil: null,
+        licenseId: issued.body.subscription.id,
+        checkedAt: new Date().toISOString(),
+        serverTime: new Date().toISOString(),
+        syncIntervalSeconds: 60,
+        offlineGraceHours: 24,
+        protocolVersion: 2,
+        messages: [],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (String(url).includes('/updates/latest')) {
       return new Response(JSON.stringify(latest.body), { status: 200, headers: { 'Content-Type': 'application/json' } });
     }
     if (String(url).includes('/updates/download/')) {
       return new Response(fakeInstaller, { status: 200, headers: { 'Content-Type': 'application/octet-stream' } });
     }
+    if (String(url).includes('/license/support/remote/tickets/list')) {
+      return new Response(JSON.stringify({ tickets: [restaurantTicket.body.ticket] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (String(url).includes('/license/support/remote/tickets/') && String(url).endsWith('/comments')) {
+      return new Response(JSON.stringify({ comment: { id: 'comment-test' }, message: 'Resposta enviada ao Gestor.' }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
+    if (String(url).includes('/license/support/remote/tickets')) {
+      return new Response(JSON.stringify({ ticket: restaurantTicket.body.ticket, message: 'Chamado enviado ao Gestor.' }), { status: 201, headers: { 'Content-Type': 'application/json' } });
+    }
     throw new Error(`URL inesperada no teste de atualizacao: ${url}`);
   };
+  await request(app).post('/license/refresh').set('Authorization', authorization).expect(200).expect(({ body }) => {
+    if (!body.synchronized || !body.license?.valid || !body.license?.sync?.connected) {
+      throw new Error('O Restaurante nao confirmou a sincronizacao solicitada com o Gestor.');
+    }
+  });
+  if (licenseSyncService.getSyncHealth().status !== 'online') {
+    throw new Error('A saude da sincronizacao nao registrou a conexao com o Gestor.');
+  }
+  await request(app).get('/license/support/tickets').set('Authorization', authorization).expect(200).expect(({ body }) => {
+    if (body.tickets?.[0]?.id !== restaurantTicket.body.ticket.id) throw new Error('A tela local não consultou os chamados do Restaurante.');
+  });
+  await request(app).post('/license/support/tickets').set('Authorization', authorization).send({
+    subject: 'Chamado pelo proxy local', description: 'Teste do aplicativo do Restaurante.', priority: 'normal',
+  }).expect(201);
+  await request(app).post(`/license/support/tickets/${restaurantTicket.body.ticket.id}/comments`).set('Authorization', authorization).send({
+    body: 'Resposta enviada pelo proxy local.',
+  }).expect(201);
   const clientUpdate = await updateService.checkNow();
   if (clientUpdate.status !== 'available' || clientUpdate.manifest.version !== '9.9.9') {
     throw new Error('O cliente nao reconheceu a atualizacao assinada.');
@@ -309,13 +387,37 @@ async function main() {
   }
   process.env.COMANDAFLOW_APP_VERSION = '2.3.0';
 
-  await request(app).post('/users').set('Authorization', authorization).send({
+  const financialUser = await request(app).post('/users').set('Authorization', authorization).send({
     name: 'Financeiro Teste', email: 'financeiro@test.local', password: 'Financeiro@Test123', role: 'financeiro',
   }).expect(201);
-  const financialLogin = await request(app).post('/auth/login').send({ email: 'financeiro@test.local', password: 'Financeiro@Test123' }).expect(200);
+  const financialLogin = await request(app).post('/auth/login')
+    .set('User-Agent', 'Notebook-Financeiro-Teste/1.0 (Windows)')
+    .send({ email: 'financeiro@test.local', password: 'Financeiro@Test123' })
+    .expect(200);
   const financialAuthorization = `Bearer ${financialLogin.body.token}`;
   await request(app).get('/billing/summary').set('Authorization', financialAuthorization).expect(200);
   await request(app).post('/manager/messages').set('Authorization', financialAuthorization).send({ title: 'Bloqueado', body: 'Não deve enviar', severity: 'info' }).expect(403);
+
+  const sessionList = await request(app).get('/auth/sessions').set('Authorization', authorization).expect(200);
+  const ownerSession = sessionList.body.sessions.find((session) => session.id === login.body.session.id);
+  const financialSession = sessionList.body.sessions.find((session) => session.id === financialLogin.body.session.id);
+  if (!ownerSession?.current || !ownerSession.active || !financialSession?.active || !financialSession.device.includes('Notebook-Financeiro-Teste')) {
+    throw new Error('O painel de segurança não identificou os logins e dispositivos da equipe.');
+  }
+  await request(app)
+    .post(`/auth/sessions/${financialSession.id}/revoke`)
+    .set('Authorization', authorization)
+    .send({ reason: 'Revogação do teste integrado' })
+    .expect(200);
+  await request(app).get('/billing/summary').set('Authorization', financialAuthorization).expect(401);
+  await request(app).post('/auth/login').send({ email: 'financeiro@test.local', password: 'Senha-Incorreta-123' }).expect(401);
+  const financialRelogin = await request(app).post('/auth/login').send({ email: 'financeiro@test.local', password: 'Financeiro@Test123' }).expect(200);
+  await request(app)
+    .put(`/users/${financialUser.body.user.id}`)
+    .set('Authorization', authorization)
+    .send({ active: false })
+    .expect(200);
+  await request(app).get('/billing/summary').set('Authorization', `Bearer ${financialRelogin.body.token}`).expect(401);
 
   const twoFactorSetup = await request(app).post('/auth/2fa/setup').set('Authorization', authorization).expect(200);
   const twoFactorCode = twoFactorService.totp(twoFactorSetup.body.secret);
@@ -326,8 +428,10 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 50));
   const audit = await request(app).get('/audit?take=100').set('Authorization', authorization).expect(200);
   if (!audit.body.logs.some((log) => log.action === 'post_success')) throw new Error('A auditoria automática não registrou as alterações.');
+  if (!audit.body.logs.some((log) => log.action === 'login_failed')) throw new Error('A auditoria não registrou a tentativa de login recusada.');
+  if (!audit.body.logs.some((log) => log.action === 'session_revoked')) throw new Error('A auditoria não registrou o encerramento remoto da sessão.');
 
-  console.log('[TEST] Gestor financeiro, monitoramento, mensagens, atualizações, suporte, permissões, 2FA e auditoria aprovados.');
+  console.log('[TEST] Gestor financeiro, monitoramento, mensagens, atualizações, suporte, sessões seguras, permissões, 2FA e auditoria aprovados.');
 }
 
 main()

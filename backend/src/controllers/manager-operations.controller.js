@@ -1,7 +1,7 @@
 const service = require('../services/manager-operations.service');
 
 const monitoring = async (req, res, next) => {
-  try { return res.json({ clients: await service.monitoring() }); } catch (error) { return next(error); }
+  try { return res.json(await service.monitoringSnapshot()); } catch (error) { return next(error); }
 };
 const notifications = async (req, res, next) => {
   try { return res.json({ notifications: await service.notifications() }); } catch (error) { return next(error); }

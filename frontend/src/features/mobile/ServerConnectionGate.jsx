@@ -3,7 +3,6 @@ import {
   ArrowRight,
   CheckCircle2,
   LoaderCircle,
-  LockKeyhole,
   Server,
   ShieldCheck,
   Smartphone,
@@ -67,8 +66,8 @@ export default function ServerConnectionGate({ children }) {
       window.setTimeout(() => window.location.reload(), 500);
     } catch (requestError) {
       const message = requestError.name === 'AbortError'
-        ? 'O servidor demorou para responder. Verifique o endereco e a internet.'
-        : requestError.message || 'Nao foi possivel conectar ao servidor do restaurante.';
+        ? 'O servidor demorou para responder. Deixe o ComandaFlow aberto e conecte os dois aparelhos ao mesmo Wi-Fi.'
+        : requestError.message || 'Nao foi possivel conectar. Confira o Wi-Fi, o IP e se o ComandaFlow esta aberto no computador.';
       setError(message);
     } finally {
       setChecking(false);
@@ -89,13 +88,13 @@ export default function ServerConnectionGate({ children }) {
         <p className="ios-setup-eyebrow">Primeiro acesso</p>
         <h1>Conecte este iPhone ao restaurante.</h1>
         <p className="ios-setup-description">
-          Informe o endereco HTTPS fornecido para sua unidade. O aplicativo testa a conexao antes de liberar o acesso.
+          Sem dominio, use o IP local do computador. O iPhone e o ComandaFlow precisam estar conectados a mesma rede Wi-Fi.
         </p>
 
         <form onSubmit={connect} className="ios-setup-form">
           <label htmlFor="restaurant-server"><Server size={15} />Servidor do restaurante</label>
           <div className="ios-setup-input-wrap">
-            <LockKeyhole size={18} />
+            <Wifi size={18} />
             <input
               id="restaurant-server"
               type="url"
@@ -105,7 +104,7 @@ export default function ServerConnectionGate({ children }) {
               spellCheck="false"
               value={serverUrl}
               onChange={(event) => setServerUrl(event.target.value)}
-              placeholder="https://app.seurestaurante.com"
+              placeholder="http://192.168.0.127:3002"
               required
             />
           </div>
@@ -120,7 +119,7 @@ export default function ServerConnectionGate({ children }) {
           </button>
         </form>
 
-        <div className="ios-setup-security"><ShieldCheck size={17} /><span>A conexao deve usar HTTPS. Sua senha nao fica armazenada nesta configuracao.</span></div>
+        <div className="ios-setup-security"><ShieldCheck size={17} /><span>HTTP e aceito somente em IP privado da rede local. Fora do restaurante, o aplicativo continua exigindo HTTPS.</span></div>
       </section>
     </main>
   );

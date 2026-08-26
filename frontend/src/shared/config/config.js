@@ -8,15 +8,37 @@ const desktopPort = typeof window !== 'undefined'
 
 const trimTrailingSlash = (value) => String(value || '').trim().replace(/\/+$/, '');
 
+const isPrivateIPv4 = (hostname) => {
+  const octets = hostname.split('.').map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) {
+    return false;
+  }
+
+  return octets[0] === 10
+    || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+    || (octets[0] === 192 && octets[1] === 168);
+};
+
+const isLocalNetworkHost = (hostname) => (
+  isPrivateIPv4(hostname) || hostname.toLowerCase().endsWith('.local')
+);
+
 export const isNativeIOS = () => (
   import.meta.env.VITE_IOS_APP === 'true' || Capacitor.getPlatform() === 'ios'
 );
 
 export const normalizeMobileServerUrl = (value) => {
   const normalized = trimTrailingSlash(value);
-  const parsed = new URL(normalized);
-  if (parsed.protocol !== 'https:') {
-    throw new Error('Use um endereco HTTPS seguro para conectar o iPhone.');
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error('Informe um endereco valido, como http://192.168.0.127:3002.');
+  }
+  const secureRemoteAddress = parsed.protocol === 'https:';
+  const privateLocalAddress = parsed.protocol === 'http:' && isLocalNetworkHost(parsed.hostname);
+  if (!secureRemoteAddress && !privateLocalAddress) {
+    throw new Error('Use HTTPS ou um IP privado da rede local, como http://192.168.0.127:3002.');
   }
   if (parsed.username || parsed.password || parsed.search || parsed.hash) {
     throw new Error('Informe somente o endereco principal do servidor, sem usuario, parametros ou fragmentos.');

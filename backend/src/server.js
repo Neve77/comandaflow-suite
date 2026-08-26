@@ -45,6 +45,7 @@ app.set('mobileClients', 0);
 setupSocket({ io, app });
 
 const PORT = process.env.PORT || 3002;
+const HOST = process.env.COMANDAFLOW_BIND_HOST || '0.0.0.0';
 
 server.on('error', (error) => {
   if (error.code === 'EADDRINUSE') {
@@ -59,8 +60,8 @@ server.on('error', (error) => {
 
 const start = async () => {
   await app.get('schemaReady');
-  server.listen(PORT, () => {
-    console.log(`Backend rodando em http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Backend rodando em http://${HOST}:${PORT}`);
     licenseSyncService.start();
     appUpdateService.start();
     billingScheduler.start();

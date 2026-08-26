@@ -21,7 +21,7 @@ assert(capacitor.webDir === 'dist', 'Diretorio web do Capacitor incorreto.');
 const project = read('frontend/ios/App/App.xcodeproj/project.pbxproj');
 assert(project.includes('PRODUCT_BUNDLE_IDENTIFIER = com.orqium.comandaflow.restaurant;'), 'Bundle ID ausente no projeto Xcode.');
 assert(project.includes('MARKETING_VERSION = 2.4.6;'), 'Versao 2.4.6 ausente no projeto Xcode.');
-assert(project.includes('CURRENT_PROJECT_VERSION = 3;'), 'Build 3 do aplicativo iOS ausente no projeto Xcode.');
+assert(project.includes('CURRENT_PROJECT_VERSION = 4;'), 'Build 4 do aplicativo iOS ausente no projeto Xcode.');
 
 const infoPlist = read('frontend/ios/App/App/Info.plist');
 assert(infoPlist.includes('<string>ComandaFlow Restaurante</string>'), 'Nome de exibicao ausente no Info.plist.');

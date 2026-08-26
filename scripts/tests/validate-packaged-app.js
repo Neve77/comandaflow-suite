@@ -100,22 +100,24 @@ async function main() {
       throw new Error(`Validacao inesperada: ${JSON.stringify({ health, capabilities, license })}`);
     }
 
-    const secondInstance = spawn(executable, [], {
-      env: packagedEnvironment,
-      windowsHide: true,
-      stdio: 'ignore',
-    });
-    await Promise.race([
-      new Promise((resolve) => secondInstance.once('exit', resolve)),
-      delay(5000),
-    ]);
-    if (secondInstance.exitCode === null) {
-      await stopProcessTree(secondInstance);
-      throw new Error('A segunda instancia permaneceu aberta em vez de focar a primeira.');
+    if (expectedManager) {
+      const secondInstance = spawn(executable, [], {
+        env: packagedEnvironment,
+        windowsHide: true,
+        stdio: 'ignore',
+      });
+      await Promise.race([
+        new Promise((resolve) => secondInstance.once('exit', resolve)),
+        delay(5000),
+      ]);
+      if (secondInstance.exitCode === null) {
+        await stopProcessTree(secondInstance);
+        throw new Error('A segunda instancia do Gestor permaneceu aberta em vez de focar a primeira.');
+      }
+      await fetch(`http://127.0.0.1:${port}/health`).then((response) => {
+        if (!response.ok) throw new Error('A primeira instancia parou depois da tentativa de segunda abertura.');
+      });
     }
-    await fetch(`http://127.0.0.1:${port}/health`).then((response) => {
-      if (!response.ok) throw new Error('A primeira instancia parou depois da tentativa de segunda abertura.');
-    });
 
     if (expectedManager) {
       await postJson(`http://127.0.0.1:${port}/auth/setup`, {

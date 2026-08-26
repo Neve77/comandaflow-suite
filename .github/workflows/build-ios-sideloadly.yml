@@ -66,15 +66,21 @@ jobs:
         run: |
           set -euo pipefail
           version="$(node -p "require('./package.json').version")"
-          app_path="frontend/ios/build/Build/Products/Release-iphoneos/App.app"
+          app_path="frontend/ios/build/Build/Products/Release-iphoneos/ComandaFlow.app"
           output_dir="dist/ios"
-          ipa_name="ComandaFlow-Restaurante-${version}-Sideloadly.ipa"
+          ipa_name="ComandaFlow-Restaurante-${version}-Sideloadly-Compatible.ipa"
           test -d "$app_path"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")"
+          bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")"
+          test "$executable" = "ComandaFlow"
+          test "$bundle_id" = "com.orqium.comandaflow.restaurant"
+          test -x "$app_path/$executable"
           mkdir -p "$output_dir/Payload"
-          cp -R "$app_path" "$output_dir/Payload/ComandaFlow.app"
+          ditto "$app_path" "$output_dir/Payload/ComandaFlow.app"
           (
             cd "$output_dir"
-            zip -qry "$ipa_name" Payload
+            ditto -c -k --sequesterRsrc --keepParent Payload "$ipa_name"
+            unzip -tq "$ipa_name"
             shasum -a 256 "$ipa_name" > "$ipa_name.sha256"
           )
 

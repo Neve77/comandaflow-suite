@@ -27,7 +27,7 @@ A automacao usa um executor macOS apenas para compilar o projeto Xcode. O arquiv
 
 1. Instale o Sideloadly pelo site oficial: https://sideloadly.io/
 2. Conecte o iPhone por USB e confirme **Confiar neste computador**.
-3. Arraste o arquivo `ComandaFlow-Restaurante-2.4.6-Sideloadly.ipa` para o Sideloadly.
+3. Arraste o arquivo `ComandaFlow-Restaurante-2.4.6-Sideloadly-Compatible.ipa` para o Sideloadly.
 4. Informe o Apple ID e inicie a instalacao.
 5. No iPhone, habilite o Modo de Desenvolvedor ou confie no perfil quando o iOS solicitar.
 6. Abra o ComandaFlow e informe o endereco HTTPS do servidor do restaurante.

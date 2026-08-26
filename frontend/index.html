@@ -2,9 +2,23 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0c1222" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ComandaFlow" />
+    <link rel="apple-touch-icon" href="./logo-icon.png" />
     <link rel="manifest" href="./manifest.json" />
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('cf_dark');
+        const useDarkTheme = savedTheme === 'true'
+          || (savedTheme === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('dark', useDarkTheme);
+      } catch (_) {
+        // O aplicativo continua no tema claro quando o armazenamento não está disponível.
+      }
+    </script>
 
     <!-- Google Fonts Preconnect & High-End Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -21,7 +35,8 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       const isElectron = navigator.userAgent.toLowerCase().includes('electron');
-      if ('serviceWorker' in navigator && !isElectron) {
+      const isNativeApp = Boolean(window.Capacitor?.isNativePlatform?.());
+      if ('serviceWorker' in navigator && !isElectron && !isNativeApp) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('./sw.js');
         });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -44,7 +44,7 @@ const requestMessage = (error) => error.response?.data?.message || 'Não foi pos
 
 export default function RestaurantSupportPage() {
   const [tickets, setTickets] = useState([]);
-  const [license, setLicense] = useState(null);
+  const [connected, setConnected] = useState(false);
   const [form, setForm] = useState({ subject: '', description: '', priority: 'normal' });
   const [replies, setReplies] = useState({});
   const [filter, setFilter] = useState('andamento');
@@ -56,29 +56,37 @@ export default function RestaurantSupportPage() {
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [lastUpdatedAt, setLastUpdatedAt] = useState(null);
+  const loadRequestRef = useRef(null);
 
   const load = useCallback(async (forceSync = false) => {
-    setRefreshing(true);
+    if (loadRequestRef.current) return loadRequestRef.current;
+    const request = (async () => {
+      if (forceSync) setRefreshing(true);
+      try {
+        if (forceSync) await api.post('/license/refresh').catch(() => null);
+        const ticketsResponse = await api.get('/license/support/tickets');
+        setTickets(ticketsResponse.data.tickets || []);
+        setConnected(true);
+        setLastUpdatedAt(new Date().toISOString());
+        setError('');
+      } catch (requestError) {
+        setConnected(false);
+        setError(requestMessage(requestError));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    })();
+    loadRequestRef.current = request;
     try {
-      if (forceSync) await api.post('/license/refresh').catch(() => null);
-      const [licenseResponse, ticketsResponse] = await Promise.all([
-        api.get('/license/status'),
-        api.get('/license/support/tickets'),
-      ]);
-      setLicense(licenseResponse.data);
-      setTickets(ticketsResponse.data.tickets || []);
-      setLastUpdatedAt(new Date().toISOString());
-      setError('');
-    } catch (requestError) {
-      setError(requestMessage(requestError));
+      return await request;
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (loadRequestRef.current === request) loadRequestRef.current = null;
     }
   }, []);
 
   useEffect(() => {
-    load(true);
+    load(false);
     const refreshWhenVisible = () => {
       if (document.visibilityState === 'visible') load(false);
     };
@@ -99,6 +107,7 @@ export default function RestaurantSupportPage() {
       setForm({ subject: '', description: '', priority: 'normal' });
       setNotice('Chamado enviado ao Gestor. Você pode acompanhar a resposta nesta tela.');
       setFilter('andamento');
+      if (loadRequestRef.current) await loadRequestRef.current;
       await load(false);
     } catch (requestError) {
       setError(requestMessage(requestError));
@@ -116,6 +125,7 @@ export default function RestaurantSupportPage() {
       await api.post(`/license/support/tickets/${ticket.id}/comments`, { body });
       setReplies((current) => ({ ...current, [ticket.id]: '' }));
       setNotice(ticket.status === 'resolvido' ? 'Resposta enviada e chamado reaberto.' : 'Resposta enviada ao Gestor.');
+      if (loadRequestRef.current) await loadRequestRef.current;
       await load(false);
     } catch (requestError) {
       setError(requestMessage(requestError));
@@ -140,8 +150,6 @@ export default function RestaurantSupportPage() {
     inProgress: tickets.filter((ticket) => ticket.status === 'em_atendimento').length,
     completed: tickets.filter((ticket) => ['resolvido', 'fechado'].includes(ticket.status)).length,
   }), [tickets]);
-
-  const connected = !error && Boolean(license?.onlineManaged);
 
   return (
     <div className="space-y-5 animate-fade-slide-up">

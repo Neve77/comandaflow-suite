@@ -1,9 +1,10 @@
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { AuthProvider, useAuth } from './providers/AuthContext';
 import api from '../shared/services/api';
 import LoadingSpinner from '../shared/components/LoadingSpinner';
 import ErrorBoundary from '../shared/components/ErrorBoundary';
+import ServerConnectionGate from '../features/mobile/ServerConnectionGate';
 
 const Layout = lazy(() => import('../shared/components/Layout'));
 const LoginPage = lazy(() => import('../features/auth/LoginPage'));
@@ -37,27 +38,37 @@ function LicenseGate({ children }) {
   const location = useLocation();
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(!system.subscriptionManager);
+  const statusRequestRef = useRef(null);
 
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(() => {
     if (system.subscriptionManager) {
       setLoading(false);
-      return;
+      return Promise.resolve();
     }
-    setLoading(true);
-    try {
-      const response = await api.get('/license/status');
-      setStatus(response.data);
-    } catch (error) {
-      setStatus({ valid: false, error: error.response?.data?.message || 'Nao foi possivel validar a assinatura.' });
-    } finally {
-      setLoading(false);
-    }
+    if (statusRequestRef.current) return statusRequestRef.current;
+    const request = api.get('/license/status')
+      .then((response) => setStatus(response.data))
+      .catch((error) => setStatus((current) => current || ({ valid: false, error: error.response?.data?.message || 'Nao foi possivel validar a assinatura.' })))
+      .finally(() => {
+        if (statusRequestRef.current === request) statusRequestRef.current = null;
+        setLoading(false);
+      });
+    statusRequestRef.current = request;
+    return request;
   }, [system.subscriptionManager]);
 
   useEffect(() => { loadStatus(); }, [loadStatus]);
   useEffect(() => {
-    window.addEventListener('comanda:license-required', loadStatus);
-    return () => window.removeEventListener('comanda:license-required', loadStatus);
+    const handleLicenseRequired = (event) => {
+      if (event.detail && typeof event.detail.valid === 'boolean') {
+        setStatus(event.detail);
+        setLoading(false);
+        return;
+      }
+      loadStatus();
+    };
+    window.addEventListener('comanda:license-required', handleLicenseRequired);
+    return () => window.removeEventListener('comanda:license-required', handleLicenseRequired);
   }, [loadStatus]);
 
   if (loading) return <FullScreenLoading />;
@@ -90,37 +101,39 @@ const ManagerOnly = ({ children }) => <ModeRoute manager>{children}</ModeRoute>;
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <HashRouter>
-          <Suspense fallback={<FullScreenLoading />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/" element={<ProtectedRoute><LicenseGate><Layout /></LicenseGate></ProtectedRoute>}>
-                <Route index element={<HomeRedirect />} />
-                <Route path="subscriptions" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
-                <Route path="subscriptions/:section" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
-                <Route path="dashboard" element={<RestaurantOnly><DashboardPage /></RestaurantOnly>} />
-                <Route path="comanda" element={<RestaurantOnly><ComandaPage /></RestaurantOnly>} />
-                <Route path="mesas" element={<RestaurantOnly><MesasPage /></RestaurantOnly>} />
-                <Route path="products" element={<RestaurantOnly><ProductsPage /></RestaurantOnly>} />
-                <Route path="pedidos" element={<RestaurantOnly><PedidosPage /></RestaurantOnly>} />
-                <Route path="finance" element={<RestaurantOnly><FinancePage /></RestaurantOnly>} />
-                <Route path="reports" element={<RestaurantOnly><ReportsPage /></RestaurantOnly>} />
-                <Route path="settings" element={<RestaurantOnly><SettingsPage /></RestaurantOnly>} />
-                <Route path="inventory" element={<RestaurantOnly><InventoryPage /></RestaurantOnly>} />
-                <Route path="bracelets" element={<RestaurantOnly><BraceletsPage /></RestaurantOnly>} />
-                <Route path="clients" element={<RestaurantOnly><ClientsPage /></RestaurantOnly>} />
-                <Route path="events" element={<RestaurantOnly><EventsPage /></RestaurantOnly>} />
-                <Route path="intelligence" element={<RestaurantOnly><IntelligencePage /></RestaurantOnly>} />
-                <Route path="devices" element={<RestaurantOnly><DevicesPage /></RestaurantOnly>} />
-                <Route path="backup" element={<RestaurantOnly><BackupPage /></RestaurantOnly>} />
-                <Route path="support" element={<RestaurantOnly><RestaurantSupportPage /></RestaurantOnly>} />
-              </Route>
-              <Route path="*" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
-            </Routes>
-          </Suspense>
-        </HashRouter>
-      </AuthProvider>
+      <ServerConnectionGate>
+        <AuthProvider>
+          <HashRouter>
+            <Suspense fallback={<FullScreenLoading />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/" element={<ProtectedRoute><LicenseGate><Layout /></LicenseGate></ProtectedRoute>}>
+                  <Route index element={<HomeRedirect />} />
+                  <Route path="subscriptions" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
+                  <Route path="subscriptions/:section" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
+                  <Route path="dashboard" element={<RestaurantOnly><DashboardPage /></RestaurantOnly>} />
+                  <Route path="comanda" element={<RestaurantOnly><ComandaPage /></RestaurantOnly>} />
+                  <Route path="mesas" element={<RestaurantOnly><MesasPage /></RestaurantOnly>} />
+                  <Route path="products" element={<RestaurantOnly><ProductsPage /></RestaurantOnly>} />
+                  <Route path="pedidos" element={<RestaurantOnly><PedidosPage /></RestaurantOnly>} />
+                  <Route path="finance" element={<RestaurantOnly><FinancePage /></RestaurantOnly>} />
+                  <Route path="reports" element={<RestaurantOnly><ReportsPage /></RestaurantOnly>} />
+                  <Route path="settings" element={<RestaurantOnly><SettingsPage /></RestaurantOnly>} />
+                  <Route path="inventory" element={<RestaurantOnly><InventoryPage /></RestaurantOnly>} />
+                  <Route path="bracelets" element={<RestaurantOnly><BraceletsPage /></RestaurantOnly>} />
+                  <Route path="clients" element={<RestaurantOnly><ClientsPage /></RestaurantOnly>} />
+                  <Route path="events" element={<RestaurantOnly><EventsPage /></RestaurantOnly>} />
+                  <Route path="intelligence" element={<RestaurantOnly><IntelligencePage /></RestaurantOnly>} />
+                  <Route path="devices" element={<RestaurantOnly><DevicesPage /></RestaurantOnly>} />
+                  <Route path="backup" element={<RestaurantOnly><BackupPage /></RestaurantOnly>} />
+                  <Route path="support" element={<RestaurantOnly><RestaurantSupportPage /></RestaurantOnly>} />
+                </Route>
+                <Route path="*" element={<ProtectedRoute><HomeRedirect /></ProtectedRoute>} />
+              </Routes>
+            </Suspense>
+          </HashRouter>
+        </AuthProvider>
+      </ServerConnectionGate>
     </ErrorBoundary>
   );
 }

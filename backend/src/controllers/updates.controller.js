@@ -18,7 +18,16 @@ const downloadPublished = async (req, res, next) => {
 const published = async (req, res, next) => {
   try {
     const current = await updateService.getPublished(req.validated?.product || 'client');
-    return res.json({ published: current ? { manifest: current.manifest, signature: current.signature, control: current.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] } } : null });
+    const product = req.validated?.product || 'client';
+    const [history, rollout] = await Promise.all([
+      updateService.getPublicationHistory(product),
+      product === 'client' ? updateService.getRolloutStatus() : Promise.resolve(null),
+    ]);
+    return res.json({
+      published: current ? { manifest: current.manifest, signature: current.signature, control: current.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] } } : null,
+      history,
+      rollout,
+    });
   } catch (error) { return next(error); }
 };
 

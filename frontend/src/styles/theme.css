@@ -1,29 +1,45 @@
 html.dark .bg-white,
+html.dark .bg-white\/70,
+html.dark .bg-white\/80,
 html.dark .bg-slate-50,
+html.dark .bg-slate-50\/40,
+html.dark .bg-slate-50\/50,
+html.dark .bg-slate-50\/60,
 html.dark .bg-slate-50\/70,
-html.dark .bg-slate-100 {
+html.dark .bg-slate-100,
+html.dark .bg-slate-200 {
   background-color: var(--surface-muted) !important;
 }
 
 html.dark .bg-blue-50,
-html.dark .bg-blue-100 {
+html.dark .bg-blue-50\/50,
+html.dark .bg-blue-100,
+html.dark .bg-blue-200 {
   background-color: rgba(37, 99, 235, 0.14) !important;
 }
 
 html.dark .bg-emerald-50,
-html.dark .bg-emerald-100 {
+html.dark .bg-emerald-50\/40,
+html.dark .bg-emerald-50\/50,
+html.dark .bg-emerald-50\/60,
+html.dark .bg-emerald-100,
+html.dark .bg-emerald-200 {
   background-color: rgba(16, 185, 129, 0.14) !important;
 }
 
 html.dark .bg-amber-50,
-html.dark .bg-amber-100 {
+html.dark .bg-amber-50\/50,
+html.dark .bg-amber-100,
+html.dark .bg-amber-200 {
   background-color: rgba(245, 158, 11, 0.14) !important;
 }
 
 html.dark .bg-rose-50,
 html.dark .bg-rose-100,
 html.dark .bg-red-50,
-html.dark .bg-red-100 {
+html.dark .bg-red-50\/30,
+html.dark .bg-red-100,
+html.dark .bg-red-200 {
   background-color: rgba(244, 63, 94, 0.14) !important;
 }
 
@@ -63,43 +79,66 @@ html.dark .text-slate-400 {
   color: var(--text-subtle) !important;
 }
 
+html.dark .text-blue-600,
 html.dark .text-blue-700,
 html.dark .text-blue-800,
-html.dark .text-blue-900 { color: #93c5fd !important; }
+html.dark .text-blue-900,
+html.dark .text-blue-950 { color: #93c5fd !important; }
+html.dark .text-emerald-600,
 html.dark .text-emerald-700,
 html.dark .text-emerald-800,
-html.dark .text-emerald-900 { color: #6ee7b7 !important; }
+html.dark .text-emerald-900,
+html.dark .text-emerald-950 { color: #6ee7b7 !important; }
+html.dark .text-amber-600,
 html.dark .text-amber-700,
 html.dark .text-amber-800,
 html.dark .text-amber-900 { color: #fcd34d !important; }
 html.dark .text-rose-700,
 html.dark .text-rose-800,
 html.dark .text-rose-900,
+html.dark .text-rose-600,
+html.dark .text-red-500,
+html.dark .text-red-600,
 html.dark .text-red-700,
 html.dark .text-red-800 { color: #fda4af !important; }
+html.dark .text-violet-600,
 html.dark .text-violet-700,
 html.dark .text-violet-800 { color: #c4b5fd !important; }
+html.dark .text-cyan-600,
 html.dark .text-cyan-700,
 html.dark .text-cyan-800 { color: #67e8f9 !important; }
+html.dark .text-indigo-600,
 html.dark .text-indigo-700,
 html.dark .text-indigo-800 { color: #a5b4fc !important; }
+html.dark .text-orange-600,
 html.dark .text-orange-700,
 html.dark .text-orange-800 { color: #fdba74 !important; }
 
 html.dark .border-slate-100,
 html.dark .border-slate-200,
-html.dark .border-slate-300 {
+html.dark .border-slate-200\/70,
+html.dark .border-slate-300,
+html.dark .border-slate-400 {
   border-color: var(--border) !important;
 }
 
+html.dark .border-blue-100,
 html.dark .border-blue-200,
-html.dark .border-blue-300 { border-color: rgba(96, 165, 250, 0.32) !important; }
+html.dark .border-blue-200\/80,
+html.dark .border-blue-300,
+html.dark .border-blue-400 { border-color: rgba(96, 165, 250, 0.46) !important; }
+html.dark .border-emerald-100,
 html.dark .border-emerald-200,
+html.dark .border-emerald-200\/70,
+html.dark .border-emerald-200\/80,
 html.dark .border-emerald-300 { border-color: rgba(52, 211, 153, 0.32) !important; }
 html.dark .border-amber-200,
-html.dark .border-amber-300 { border-color: rgba(251, 191, 36, 0.32) !important; }
+html.dark .border-amber-200\/80,
+html.dark .border-amber-300,
+html.dark .border-amber-400 { border-color: rgba(251, 191, 36, 0.32) !important; }
 html.dark .border-rose-200,
 html.dark .border-rose-300,
+html.dark .border-rose-400,
 html.dark .border-red-200 { border-color: rgba(251, 113, 133, 0.32) !important; }
 html.dark .border-violet-200,
 html.dark .border-violet-300 { border-color: rgba(167, 139, 250, 0.32) !important; }
@@ -142,6 +181,31 @@ html.dark .mesa-card-livre,
 html.dark .mesa-card-ocupada {
   background: var(--surface);
   border-color: var(--border-strong);
+}
+
+html.dark .mesa-card-pagamento {
+  background: rgba(245,158,11,0.1);
+  border-color: rgba(251,191,36,0.34);
+}
+
+html.dark .mesa-card-reservada {
+  background: rgba(139,92,246,0.1);
+  border-color: rgba(167,139,250,0.34);
+}
+
+html.dark .alert-banner-warning {
+  background: linear-gradient(135deg, rgba(16,185,129,0.13), rgba(5,150,105,0.08));
+  border-color: rgba(52,211,153,0.32);
+}
+
+html.dark .alert-banner-info {
+  background: linear-gradient(135deg, rgba(59,130,246,0.13), rgba(14,165,233,0.08));
+  border-color: rgba(96,165,250,0.32);
+}
+
+html.dark .alert-banner-danger {
+  background: linear-gradient(135deg, rgba(244,63,94,0.13), rgba(220,38,38,0.08));
+  border-color: rgba(251,113,133,0.32);
 }
 
 html.dark img {

@@ -1,0 +1,23 @@
+{
+  "appId": "com.orqium.comandaflow.restaurant",
+  "appName": "ComandaFlow Restaurante",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "automatic",
+    "preferredContentMode": "mobile",
+    "allowsLinkPreview": false,
+    "scrollEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "launchAutoHide": true,
+      "backgroundColor": "#0c1222",
+      "showSpinner": false,
+      "fadeOutDuration": 250
+    },
+    "StatusBar": {
+      "style": "DARK"
+    }
+  }
+}

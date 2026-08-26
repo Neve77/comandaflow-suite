@@ -92,16 +92,6 @@ Depois que a versão nova inicia corretamente, o pacote baixado e outros instala
 
 Importante: a linha 2.3 é a primeira que contém o atualizador. Restaurantes que ainda usam 2.2.0 ou anterior precisam instalar a 2.3.1 manualmente uma única vez. Depois disso, as próximas versões podem ser distribuídas pelo Gestor.
 
-## Atualizar o próprio Gestor
-
-1. Clique em **Publicar versão do Gestor** no cartão **Atualização do Gestor**.
-2. Selecione **Gestor** e envie exatamente `ComandaFlow-Gestor-Setup-versão.exe`.
-3. Depois da validação da assinatura e do SHA-256, clique em **Instalar e reiniciar**.
-4. O aplicativo fecha, abre o instalador e preserva os dados em `%APPDATA%\ComandaFlowGestor`.
-5. Na primeira abertura da versão nova, o instalador usado e pacotes antigos são removidos automaticamente.
-
-A atualização 2.3.1 → 2.4.0 do Gestor precisa ser instalada manualmente uma única vez, pois o autoatualizador do Gestor começa na 2.4.0. As próximas versões podem ser publicadas e instaladas no próprio painel.
-
 ## Suporte integrado do Restaurante
 
 No aplicativo do Restaurante, abra **Suporte** no menu lateral para criar um chamado, escolher a prioridade, acompanhar o andamento e conversar com a equipe do Gestor. A tela consulta novas respostas automaticamente a cada 30 segundos e também possui atualização manual.

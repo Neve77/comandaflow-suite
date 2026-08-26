@@ -8,9 +8,17 @@
   "scripts": {
     "dev": "vite --host --open",
     "build": "vite build",
+    "build:ios": "vite build --mode ios",
+    "ios:add": "cap add ios",
+    "ios:sync": "npm run build:ios && cap sync ios",
+    "ios:open": "cap open ios",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.2",
     "axios": "^1.7.0",
     "chart.js": "^4.5.1",
     "exceljs": "^4.4.0",
@@ -24,6 +32,7 @@
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.35",

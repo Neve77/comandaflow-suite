@@ -9,13 +9,12 @@ import {
   CreditCard,
   Globe2,
   KeyRound,
-  LoaderCircle,
-  MonitorDown,
   Plus,
   PauseCircle,
   PlayCircle,
   RefreshCw,
   Repeat2,
+  RotateCcw,
   Search,
   UploadCloud,
   UserRoundCheck,
@@ -44,6 +43,9 @@ import MessagesPanel from './components/MessagesPanel';
 import MonitoringPanel from './components/MonitoringPanel';
 import SecurityPanel from './components/SecurityPanel';
 import SupportPanel from './components/SupportPanel';
+import PulsePanel from './components/PulsePanel';
+import PendingPanel from './components/PendingPanel';
+import SubscriberProfileModal from './components/SubscriberProfileModal';
 import {
   copyText,
   emptySubscriber,
@@ -82,15 +84,15 @@ export default function SubscriptionsPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [updateModalOpen, setUpdateModalOpen] = useState(false);
   const [publishedUpdate, setPublishedUpdate] = useState(null);
-  const [managerUpdate, setManagerUpdate] = useState(null);
-  const [managerUpdateStatus, setManagerUpdateStatus] = useState({ status: 'idle', available: false, currentVersion: '' });
-  const [installingManager, setInstallingManager] = useState(false);
+  const [updateHistory, setUpdateHistory] = useState([]);
+  const [rolloutStatus, setRolloutStatus] = useState(null);
   const [charges, setCharges] = useState([]);
   const [billingSummary, setBillingSummary] = useState({ pending: 0, overdue: 0, cancelledThisMonth: 0, cancelledSubscribers: 0, outstandingTotal: 0, receivedThisMonth: 0, recurringMonthly: 0 });
   const [billingModal, setBillingModal] = useState(null);
   const [paymentModal, setPaymentModal] = useState(null);
   const [billingHistory, setBillingHistory] = useState(null);
   const [recurrenceModal, setRecurrenceModal] = useState(null);
+  const [profileSubscriberId, setProfileSubscriberId] = useState(null);
   const [settings, setSettings] = useState({
     publicServerUrl: '', offlineGraceHours: 24, syncIntervalMinutes: 1,
     automaticSuspensionEnabled: true, paymentGraceDays: 3,
@@ -108,13 +110,11 @@ export default function SubscriptionsPage() {
     setError('');
     try {
       const billingAllowed = can('billing:read');
-      const [listResponse, summaryResponse, settingsResponse, updateResponse, managerUpdateResponse, managerStatusResponse, chargesResponse, billingResponse] = await Promise.all([
+      const [listResponse, summaryResponse, settingsResponse, updateResponse, chargesResponse, billingResponse] = await Promise.all([
         api.get('/subscriptions/subscribers', { params: { search: search || undefined, status } }),
         api.get('/subscriptions/summary'),
         api.get('/subscriptions/settings'),
         api.get('/updates/published', { params: { product: 'client' } }),
-        api.get('/updates/published', { params: { product: 'manager' } }),
-        api.get('/updates/manager/status'),
         billingAllowed ? api.get('/billing/charges') : Promise.resolve({ data: { charges: [] } }),
         billingAllowed ? api.get('/billing/summary') : Promise.resolve({ data: {} }),
       ]);
@@ -122,8 +122,8 @@ export default function SubscriptionsPage() {
       setSummary(summaryResponse.data);
       setSettings(settingsResponse.data);
       setPublishedUpdate(updateResponse.data.published);
-      setManagerUpdate(managerUpdateResponse.data.published);
-      setManagerUpdateStatus(managerStatusResponse.data);
+      setUpdateHistory(updateResponse.data.history || []);
+      setRolloutStatus(updateResponse.data.rollout || null);
       setCharges(chargesResponse.data.charges || []);
       setBillingSummary(billingResponse.data);
     } catch (requestError) {
@@ -217,11 +217,12 @@ export default function SubscriptionsPage() {
   const publishUpdate = async (form, onProgress) => {
     try {
       const started = await api.post('/updates/publish/start', {
-        product: form.product,
+        product: 'client',
         version: form.version,
         releaseNotes: form.releaseNotes,
         mandatory: form.mandatory,
         rollout: form.rollout,
+        rolloutPercentage: Number(form.rolloutPercentage || 10),
         pilotSubscriberIds: form.pilotSubscriberIds,
         fileName: form.file.name,
         size: form.file.size,
@@ -234,31 +235,27 @@ export default function SubscriptionsPage() {
         },
       });
       setUpdateModalOpen(false);
-      showNotice(`Atualização ${form.version} publicada para ${form.product === 'manager' ? 'o Gestor' : 'os restaurantes'}.`);
+      showNotice(`Atualização ${form.version} publicada para os restaurantes.`);
       await loadData();
     } catch (requestError) {
       throw new Error(requestError.response?.data?.message || 'Nao foi possivel publicar a atualizacao.');
     }
   };
 
-  const installManagerUpdate = async () => {
-    if (!window.confirm(`Instalar o ComandaFlow Gestor ${managerUpdateStatus.manifest?.version}? O aplicativo será reiniciado.`)) return;
-    setInstallingManager(true);
-    setError('');
-    try {
-      await api.post('/updates/manager/install');
-      showNotice('Instalador do Gestor aberto. O aplicativo será reiniciado.');
-    } catch (requestError) {
-      setInstallingManager(false);
-      setError(requestError.response?.data?.message || 'Não foi possível iniciar a atualização do Gestor.');
-    }
-  };
-
-  const controlUpdate = async (action) => {
+  const controlUpdate = async (action, options = {}) => {
     if (action === 'withdraw' && !window.confirm('Retirar esta atualização de todos os clientes?')) return;
+    if (action === 'rollback' && !window.confirm('Restaurar esta versão como estável? Clientes que já instalaram uma versão superior não sofrerão downgrade automático.')) return;
     try {
-      await api.patch('/updates/published/control', { action });
-      showNotice(action === 'promote' ? 'Atualização liberada para todos.' : action === 'pause' ? 'Atualização pausada.' : action === 'resume' ? 'Atualização retomada.' : 'Atualização retirada.');
+      await api.patch('/updates/published/control', { action, ...options });
+      const messages = {
+        promote: 'Atualização liberada para todos.',
+        percentage: `Atualização liberada gradualmente para ${options.rolloutPercentage}% da base.`,
+        pause: 'Atualização pausada.',
+        resume: 'Atualização retomada.',
+        withdraw: 'Atualização retirada.',
+        rollback: 'Versão estável anterior restaurada.',
+      };
+      showNotice(messages[action] || 'Liberação atualizada.');
       await loadData();
     } catch (requestError) { setError(requestError.response?.data?.message || 'Não foi possível alterar a atualização.'); }
   };
@@ -317,7 +314,7 @@ export default function SubscriptionsPage() {
       return <button className="btn-primary manager-header-action bg-blue-600 hover:bg-blue-700" onClick={() => setBillingModal({})}><WalletCards size={18} />Nova cobrança</button>;
     }
     if (activeSection.key === 'updates' && can('updates:write')) {
-      return <button className="btn-primary manager-header-action bg-indigo-600 hover:bg-indigo-700" onClick={() => setUpdateModalOpen('client')}><UploadCloud size={18} />Publicar versão</button>;
+      return <button className="btn-primary manager-header-action bg-indigo-600 hover:bg-indigo-700" onClick={() => setUpdateModalOpen(true)}><UploadCloud size={18} />Publicar versão</button>;
     }
     if (activeSection.key === 'settings' && can('subscriptions:write')) {
       return <button className="btn-primary manager-header-action bg-slate-800 hover:bg-slate-700" onClick={() => setSettingsOpen(true)}><Globe2 size={18} />Editar servidor</button>;
@@ -365,7 +362,7 @@ export default function SubscriptionsPage() {
       </section>}
 
       {activeSection.key === 'updates' && <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="flex items-start gap-3">
             <div className="rounded-xl bg-blue-100 p-3 text-blue-700"><UploadCloud size={22} /></div>
             <div>
@@ -373,32 +370,21 @@ export default function SubscriptionsPage() {
               {publishedUpdate?.manifest ? (
                 <>
                   <p className="mt-1 text-sm text-slate-600">Versao {publishedUpdate.manifest.version} publicada em {formatDate(publishedUpdate.manifest.publishedAt)} · {formatFileSize(publishedUpdate.manifest.size)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{publishedUpdate.manifest.mandatory ? 'Atualizacao obrigatoria' : 'O restaurante pode escolher instalar depois'} · {publishedUpdate.control?.audience === 'pilot' ? 'clientes de teste' : 'todos os clientes'} · {{ active: 'ativa', paused: 'pausada', withdrawn: 'retirada' }[publishedUpdate.control?.state] || 'ativa'}.</p>
+                  <p className="mt-1 text-xs text-slate-500">{publishedUpdate.manifest.mandatory ? 'Atualizacao obrigatoria' : 'O restaurante pode escolher instalar depois'} · {publishedUpdate.control?.audience === 'pilot' ? 'clientes de teste' : publishedUpdate.control?.audience === 'percentage' ? `${publishedUpdate.control.rolloutPercentage}% da base` : 'todos os clientes'} · {{ active: 'ativa', paused: 'pausada', withdrawn: 'retirada' }[publishedUpdate.control?.state] || 'ativa'}.</p>
                 </>
               ) : <p className="mt-1 text-sm text-slate-600">Nenhum instalador foi publicado pelo Gestor.</p>}
             </div>
           </div>
-          {can('updates:write') && <div className="flex flex-wrap justify-end gap-2">{publishedUpdate?.control?.audience === 'pilot' && <button className="btn-secondary text-emerald-700" onClick={() => controlUpdate('promote')}>Liberar para todos</button>}{publishedUpdate?.control?.state === 'paused' ? <button className="btn-secondary" onClick={() => controlUpdate('resume')}><PlayCircle size={16} />Retomar</button> : publishedUpdate?.control?.state !== 'withdrawn' && <button className="btn-secondary" onClick={() => controlUpdate('pause')}><PauseCircle size={16} />Pausar</button>}{publishedUpdate && publishedUpdate.control?.state !== 'withdrawn' && <button className="btn-secondary text-rose-700" onClick={() => controlUpdate('withdraw')}><Ban size={16} />Retirar</button>}<button className="btn-primary shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => setUpdateModalOpen('client')}><UploadCloud size={17} />Publicar nova versão</button></div>}
-        </div>
-      </section>}
-
-      {activeSection.key === 'updates' && <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl bg-violet-100 p-3 text-violet-700"><MonitorDown size={22} /></div>
-            <div>
-              <p className="font-extrabold text-slate-900">Atualização do Gestor</p>
-              {managerUpdate?.manifest ? <>
-                <p className="mt-1 text-sm text-slate-600">Versão {managerUpdate.manifest.version} pronta · {formatFileSize(managerUpdate.manifest.size)}</p>
-                <p className="mt-1 text-xs text-slate-500">Versão instalada: {managerUpdateStatus.currentVersion || 'não identificada'}. O instalador anterior é removido automaticamente depois da atualização.</p>
-              </> : <p className="mt-1 text-sm text-slate-600">Gestor {managerUpdateStatus.currentVersion || ''} instalado e nenhum pacote novo pendente.</p>}
-            </div>
-          </div>
-          {can('updates:write') && <div className="flex flex-wrap justify-end gap-2">
-            {managerUpdateStatus.available && <button className="btn-primary bg-violet-600 hover:bg-violet-700" onClick={installManagerUpdate} disabled={installingManager}>{installingManager ? <LoaderCircle className="animate-spin" size={17} /> : <MonitorDown size={17} />}{installingManager ? 'Abrindo instalador...' : 'Instalar e reiniciar'}</button>}
-            <button className="btn-secondary" onClick={() => setUpdateModalOpen('manager')}><UploadCloud size={17} />Publicar versão do Gestor</button>
+          {can('updates:write') && <div className="flex max-w-xl flex-wrap justify-end gap-2">
+            {publishedUpdate && [10, 25, 50].map((percentage) => <button key={percentage} className={`btn-secondary ${publishedUpdate.control?.audience === 'percentage' && Number(publishedUpdate.control.rolloutPercentage) === percentage ? 'border-blue-400 text-blue-700' : ''}`} onClick={() => controlUpdate('percentage', { rolloutPercentage: percentage })}>{percentage}%</button>)}
+            {publishedUpdate && <button className="btn-secondary text-emerald-700" onClick={() => controlUpdate('promote')}>100%</button>}
+            {publishedUpdate?.control?.state === 'paused' ? <button className="btn-secondary" onClick={() => controlUpdate('resume')}><PlayCircle size={16} />Retomar</button> : publishedUpdate?.control?.state !== 'withdrawn' && <button className="btn-secondary" onClick={() => controlUpdate('pause')}><PauseCircle size={16} />Pausar</button>}
+            {publishedUpdate && publishedUpdate.control?.state !== 'withdrawn' && <button className="btn-secondary text-rose-700" onClick={() => controlUpdate('withdraw')}><Ban size={16} />Retirar</button>}
+            <button className="btn-primary shrink-0 bg-blue-600 hover:bg-blue-700" onClick={() => setUpdateModalOpen(true)}><UploadCloud size={17} />Publicar nova versão</button>
           </div>}
         </div>
+        {rolloutStatus && <div className="mt-5 grid gap-3 border-t border-blue-200 pt-4 sm:grid-cols-3"><div className="rounded-xl bg-white/70 p-3"><p className="text-xs font-bold uppercase text-slate-500">Selecionados</p><p className="mt-1 text-xl font-extrabold text-slate-900">{rolloutStatus.targeted}</p></div><div className="rounded-xl bg-white/70 p-3"><p className="text-xs font-bold uppercase text-slate-500">Atualizados</p><p className="mt-1 text-xl font-extrabold text-emerald-700">{rolloutStatus.installed}</p></div><div className="rounded-xl bg-white/70 p-3"><p className="text-xs font-bold uppercase text-slate-500">Pendentes</p><p className="mt-1 text-xl font-extrabold text-amber-700">{rolloutStatus.pending}</p></div></div>}
+        {updateHistory.length > 0 && <div className="mt-4 border-t border-blue-200 pt-4"><p className="text-xs font-bold uppercase tracking-wider text-blue-800">Versões estáveis anteriores</p><div className="mt-2 flex flex-wrap gap-2">{updateHistory.map((item) => <div key={item.manifest?.id} className="flex items-center gap-2 rounded-xl border border-blue-200 bg-white/80 px-3 py-2 text-sm"><span><strong>{item.manifest?.version}</strong><small className="ml-2 text-slate-500">{formatDate(item.manifest?.publishedAt)}</small></span>{can('updates:write') && item.available && <button className="inline-flex items-center gap-1 font-bold text-blue-700 hover:underline" onClick={() => controlUpdate('rollback', { targetId: item.manifest.id })}><RotateCcw size={14} />Restaurar</button>}</div>)}</div><p className="mt-2 text-[11px] text-blue-700">A restauração interrompe a versão atual e volta a oferecer o pacote estável anterior. Instalações já atualizadas não recebem downgrade automático.</p></div>}
       </section>}
 
       {notice && <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800"><Check size={18} />{notice}</div>}
@@ -435,6 +421,8 @@ export default function SubscriptionsPage() {
 
       {activeSection.key === 'billing' && can('billing:read') && <BillingPanel summary={billingSummary} charges={charges} loading={loading} canWrite={can('billing:write')} showCreateButton={false} onCreate={(subscriberId) => setBillingModal(subscriberId ? { subscriberId } : {})} onEdit={setBillingModal} onPay={setPaymentModal} onCancel={cancelCharge} onHistory={setBillingHistory} />}
 
+      {activeSection.key === 'pulse' && <PulsePanel onOpenProfile={setProfileSubscriberId} />}
+      {activeSection.key === 'pending' && <PendingPanel onOpenProfile={setProfileSubscriberId} />}
       {activeSection.key === 'monitoring' && can('monitoring:read') && <MonitoringPanel />}
       {activeSection.key === 'messages' && can('messages:read') && <MessagesPanel subscribers={subscribers} canWrite={can('messages:write')} />}
       {activeSection.key === 'support' && can('support:read') && <SupportPanel subscribers={subscribers} canWrite={can('support:write')} />}
@@ -480,6 +468,7 @@ export default function SubscriptionsPage() {
                     <td data-label="Plano atual" className="px-5 py-4"><p className="font-semibold text-slate-700">{current?.plan || 'Sem assinatura'}</p><p className="text-xs text-slate-500">{current ? `${current.maxDevices} dispositivo(s)` : '—'}</p></td>
                     <td data-label="Validade" className="px-5 py-4"><p className="font-semibold text-slate-700">{formatDate(current?.expiresAt)}</p><p className="text-xs text-slate-500">{current?.status || '—'}</p></td>
                     <td data-label="Ações" className="px-5 py-4"><div className="responsive-table-actions flex flex-wrap justify-end gap-2">
+                      <button className="btn-secondary px-3 text-violet-700" onClick={() => setProfileSubscriberId(subscriber.id)}>Ficha</button>
                       {current?.licenseKey && <button className="btn-secondary px-3" onClick={() => setLicenseModal({ ...current, businessName: subscriber.businessName })} title="Ver chave"><KeyRound size={16} /><span className="md:hidden">Chave</span></button>}
                       {can('subscriptions:write') && <button className="btn-secondary px-3" onClick={() => setSubscriberModal(subscriber)}>Editar</button>}
                       {can('billing:write') && <button className="btn-secondary px-3 text-blue-700" title="Nova cobrança" onClick={() => setBillingModal({ subscriberId: subscriber.id })}><WalletCards size={16} /><span className="md:hidden">Cobrar</span></button>}
@@ -507,11 +496,12 @@ export default function SubscriptionsPage() {
       {cancelSubscriberModal && <CancellationModal subscriber={cancelSubscriberModal} onClose={() => setCancelSubscriberModal(null)} onCancel={cancelSubscriber} />}
       {messageModal && <MessageModal data={messageModal} onClose={() => setMessageModal(null)} onCopy={() => { copyText(messageModal.message); showNotice('Mensagem copiada para a area de transferencia.'); }} />}
       {settingsOpen && <ServerSettingsModal initial={settings} onClose={() => setSettingsOpen(false)} onSave={saveServerSettings} />}
-      {updateModalOpen && <PublishUpdateModal current={publishedUpdate?.manifest} managerCurrent={managerUpdate?.manifest || { version: managerUpdateStatus.currentVersion }} initialProduct={updateModalOpen} subscribers={subscribers} onClose={() => setUpdateModalOpen(false)} onPublish={publishUpdate} />}
+      {updateModalOpen && <PublishUpdateModal current={publishedUpdate?.manifest} subscribers={subscribers} onClose={() => setUpdateModalOpen(false)} onPublish={publishUpdate} />}
       {billingModal && <BillingChargeModal subscribers={subscribers} initial={billingModal} onClose={() => setBillingModal(null)} onSave={saveCharge} />}
       {paymentModal && <PaymentModal charge={paymentModal} onClose={() => setPaymentModal(null)} onPay={payCharge} />}
       {billingHistory && <BillingHistoryModal charge={billingHistory} onClose={() => setBillingHistory(null)} />}
       {recurrenceModal && <RecurringBillingModal subscriber={recurrenceModal} onClose={() => setRecurrenceModal(null)} onSave={saveRecurrence} />}
+      {profileSubscriberId && <SubscriberProfileModal subscriberId={profileSubscriberId} canWrite={can('subscriptions:write')} onClose={() => setProfileSubscriberId(null)} onChanged={loadData} />}
     </div>
   );
 }

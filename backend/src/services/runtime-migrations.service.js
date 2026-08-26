@@ -186,6 +186,25 @@ const ensureRuntimeSchema = async () => {
   await prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "MessageReceipt_messageId_installationId_key" ON "MessageReceipt"("messageId", "installationId")');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "SupportTicket_subscriberId_status_updatedAt_idx" ON "SupportTicket"("subscriberId", "status", "updatedAt")');
   await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "SupportTicketComment_ticketId_createdAt_idx" ON "SupportTicketComment"("ticketId", "createdAt")');
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SubscriberOnboardingStep" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "subscriberId" TEXT NOT NULL,
+      "key" TEXT NOT NULL,
+      "completed" BOOLEAN NOT NULL DEFAULT false,
+      "source" TEXT NOT NULL DEFAULT 'manual',
+      "note" TEXT,
+      "completedAt" DATETIME,
+      "completedBy" TEXT,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" DATETIME NOT NULL,
+      CONSTRAINT "SubscriberOnboardingStep_subscriberId_fkey"
+        FOREIGN KEY ("subscriberId") REFERENCES "Subscriber"("id")
+        ON DELETE CASCADE ON UPDATE CASCADE
+    )
+  `);
+  await prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "SubscriberOnboardingStep_subscriberId_key_key" ON "SubscriberOnboardingStep"("subscriberId", "key")');
+  await prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "SubscriberOnboardingStep_subscriberId_completed_idx" ON "SubscriberOnboardingStep"("subscriberId", "completed")');
 };
 
 module.exports = ensureRuntimeSchema;

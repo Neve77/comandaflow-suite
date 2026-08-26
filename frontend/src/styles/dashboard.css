@@ -36,6 +36,10 @@
   transition: all var(--duration-base) var(--ease-smooth);
   overflow: hidden;
   animation: fadeSlideUp var(--duration-slow) var(--ease-smooth) both;
+  width: 100%;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
 }
 
 .metric-card::before {
@@ -67,6 +71,40 @@
   transform: translateY(-2px);
   border-color: var(--border-strong);
 }
+
+.metric-card:focus-visible {
+  outline: 3px solid rgba(16,185,129,0.22);
+  outline-offset: 2px;
+}
+
+.dashboard-date-chip,
+.dashboard-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.dashboard-date-chip {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 6px 10px;
+  color: var(--text-muted);
+}
+
+.dashboard-refresh-btn {
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  color: var(--emerald-dark);
+  cursor: pointer;
+}
+
+html.dark .dashboard-refresh-btn { color: #6ee7b7; }
+.dashboard-refresh-btn:hover { background: rgba(16,185,129,0.08); }
+.dashboard-refresh-btn:disabled { cursor: wait; opacity: 0.62; }
 
 .metric-card .metric-header {
   display: flex;
@@ -369,3 +407,43 @@
 .pedido-status.preparo   { color: #f97316; }
 .pedido-status.pronto    { color: #10b981; }
 .pedido-status.aguardando { color: #3b82f6; }
+
+@media (max-width: 639px) {
+  .pedido-row {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .pedido-row > div:first-child {
+    min-width: 0;
+    align-items: flex-start;
+  }
+
+  .pedido-row > div:last-child {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+  }
+
+  .quick-actions-bar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .quick-actions-bar .qa-title {
+    grid-column: 1 / -1;
+    padding: 2px 4px 6px;
+  }
+
+  .quick-actions-bar .qa-divider {
+    display: none;
+  }
+
+  .quick-action-btn {
+    justify-content: flex-start;
+    border: 1px solid var(--border);
+    background: var(--surface-muted);
+    padding: 10px;
+  }
+}

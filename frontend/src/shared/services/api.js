@@ -7,6 +7,8 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
+let lastLicenseRequiredEventAt = 0;
+
 export const setToken = (token) => {
   if (token) {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -33,7 +35,11 @@ api.interceptors.response.use(
       window.dispatchEvent(new Event('comanda:unauthorized'));
     }
     if (error.response?.data?.code === 'LICENSE_EXPIRED') {
-      window.dispatchEvent(new Event('comanda:license-required'));
+      const now = Date.now();
+      if (now - lastLicenseRequiredEventAt > 1000) {
+        lastLicenseRequiredEventAt = now;
+        window.dispatchEvent(new Event('comanda:license-required'));
+      }
     }
     return Promise.reject(error);
   }

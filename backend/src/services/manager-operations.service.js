@@ -1,5 +1,6 @@
 const prisma = require('../infra/prisma/client');
 const managerSettings = require('./manager-settings.service');
+const managerInsights = require('./manager-insights.service');
 
 const httpError = (message, status = 400) => Object.assign(new Error(message), { status });
 
@@ -299,6 +300,7 @@ module.exports = {
   monitoringSnapshot,
   notifications,
   pendingMessages,
+  recordOnboardingSignals: managerInsights.recordOnboardingSignals,
   sendMessage,
   updateTicket,
 };

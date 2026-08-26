@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  Activity,
   Clock3,
   Copy,
   KeyRound,
@@ -7,9 +8,12 @@ import {
   LogOut,
   Plus,
   RefreshCw,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Users,
+  UserPlus,
+  X,
 } from 'lucide-react';
 import api from '../../../shared/services/api';
 
@@ -75,6 +79,11 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
   const [error, setError] = useState('');
   const [processing, setProcessing] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'operador' });
+  const [activeTab, setActiveTab] = useState('security');
+  const [createOpen, setCreateOpen] = useState(false);
+  const [teamSearch, setTeamSearch] = useState('');
+  const [sessionFilter, setSessionFilter] = useState('active');
+  const [auditSearch, setAuditSearch] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -130,6 +139,7 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
     try {
       await api.post('/users', form);
       setForm({ name: '', email: '', password: '', role: 'operador' });
+      setCreateOpen(false);
       setNotice('Funcionário adicionado. Envie o e-mail e a senha inicial por um canal seguro.'); await load();
     } catch (requestError) { setError(requestMessage(requestError)); }
     finally { setProcessing(false); }
@@ -173,10 +183,53 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
 
   const activeSessions = sessions.filter((session) => session.active);
   const onlineSessions = sessions.filter((session) => session.online);
+  const activeUsers = users.filter((item) => item.active);
+  const failedAttempts = logs.filter((log) => log.action === 'login_failed').length;
+  const visibleUsers = users.filter((item) => {
+    const term = teamSearch.trim().toLowerCase();
+    return !term || item.name?.toLowerCase().includes(term) || item.email?.toLowerCase().includes(term);
+  });
+  const visibleSessions = sessions.filter((session) => sessionFilter === 'all' || (sessionFilter === 'online' ? session.online : session.active));
+  const visibleLogs = logs.filter((log) => {
+    const term = auditSearch.trim().toLowerCase();
+    return !term
+      || (auditActionLabel[log.action] || log.action).toLowerCase().includes(term)
+      || auditUserLabel(log).toLowerCase().includes(term)
+      || log.entity?.toLowerCase().includes(term);
+  });
+  const tabs = [
+    ['security', 'Proteção', ShieldCheck],
+    ...(canManageUsers ? [['team', 'Equipe', Users], ['sessions', 'Acessos', Laptop2]] : []),
+    ...(canAudit ? [['audit', 'Auditoria', Activity]] : []),
+  ];
 
   return (
     <section className="space-y-4">
-      <div className="panel p-5">
+      <div className="panel overflow-hidden">
+        <header className="border-b border-slate-100 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="shrink-0 rounded-xl bg-emerald-50 p-3 text-emerald-700"><ShieldCheck size={22} /></div>
+              <div><h2 className="font-extrabold text-slate-900">Equipe e segurança</h2><p className="text-xs text-slate-500">Controle pessoas, permissões, acessos e proteção da conta.</p></div>
+            </div>
+            <button type="button" className="btn-secondary" onClick={load}><RefreshCw size={16} />Atualizar dados</button>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <article className="rounded-xl border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500">Proteção da conta</p><p className={`mt-1 text-sm font-extrabold ${twoFactor.enabled ? 'text-emerald-700' : 'text-amber-700'}`}>{twoFactor.enabled ? '2FA ativada' : '2FA pendente'}</p></article>
+            {canManageUsers && <article className="rounded-xl border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500">Equipe ativa</p><p className="mt-1 text-xl font-extrabold text-slate-900">{activeUsers.length}</p></article>}
+            {canManageUsers && <article className="rounded-xl border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500">Online agora</p><p className="mt-1 text-xl font-extrabold text-emerald-700">{onlineSessions.length}</p></article>}
+            {canAudit && <article className="rounded-xl border border-slate-200 p-3"><p className="text-xs font-bold text-slate-500">Tentativas recusadas</p><p className={`mt-1 text-xl font-extrabold ${failedAttempts ? 'text-rose-700' : 'text-slate-900'}`}>{failedAttempts}</p></article>}
+          </div>
+        </header>
+        <nav className="flex gap-1 overflow-x-auto p-2" aria-label="Áreas de segurança">
+          {tabs.map(([value, label, Icon]) => <button key={value} type="button" className={`nav-pill ${activeTab === value ? 'nav-pill-active' : ''}`} onClick={() => setActiveTab(value)}><Icon size={15} />{label}</button>)}
+        </nav>
+      </div>
+
+      {error && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
+      {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div>}
+
+      {activeTab === 'security' && <div className="panel p-5">
         <div className="flex items-center gap-3">
           <div className="shrink-0 rounded-xl bg-emerald-50 p-3 text-emerald-700"><ShieldCheck size={21} /></div>
           <div>
@@ -184,8 +237,6 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
             <p className="text-xs text-slate-500">Segundo fator, sessões protegidas e códigos de recuperação.</p>
           </div>
         </div>
-        {error && <div className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</div>}
-        {notice && <div className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</div>}
         <div className="mt-4 rounded-xl border border-slate-200 p-4">
           <p className="font-bold text-slate-900">
             Autenticação em dois fatores:{' '}
@@ -216,9 +267,9 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
             </div>
           )}
         </div>
-      </div>
+      </div>}
 
-      {canManageUsers && (
+      {canManageUsers && activeTab === 'team' && (
         <div className="panel p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
@@ -228,13 +279,17 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                 <p className="text-xs text-slate-500">Uma conta por funcionário, com permissões próprias.</p>
               </div>
             </div>
-            <button type="button" className="btn-secondary w-full sm:w-auto" onClick={copyTeamInstructions}><Copy size={16} />Copiar instruções</button>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" className="btn-secondary w-full sm:w-auto" onClick={copyTeamInstructions}><Copy size={16} />Copiar instruções</button>
+              <button type="button" className={createOpen ? 'btn-secondary w-full sm:w-auto' : 'btn-primary w-full bg-blue-600 hover:bg-blue-700 sm:w-auto'} onClick={() => setCreateOpen((value) => !value)}>{createOpen ? <X size={16} /> : <UserPlus size={16} />}{createOpen ? 'Cancelar' : 'Adicionar pessoa'}</button>
+            </div>
           </div>
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <ShieldAlert className="mt-0.5 shrink-0" size={18} />
             <p><strong>Não compartilhe a senha do proprietário.</strong> Cadastre cada pessoa abaixo. Ao desativar uma conta, todos os acessos dela são encerrados imediatamente.</p>
           </div>
-          <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={createUser}>
+          {createOpen && <form className="mt-4 grid gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 md:grid-cols-2" onSubmit={createUser}>
+            <div className="md:col-span-2"><p className="font-extrabold text-slate-900">Nova conta individual</p><p className="text-xs text-slate-500">A pessoa poderá trocar a senha depois do primeiro acesso.</p></div>
             <input className="input-field" placeholder="Nome" value={form.name} onChange={(event) => setForm((value) => ({ ...value, name: event.target.value }))} required />
             <input type="email" className="input-field" placeholder="E-mail individual" value={form.email} onChange={(event) => setForm((value) => ({ ...value, email: event.target.value }))} required />
             <input type="password" minLength={10} className="input-field" placeholder="Senha inicial (mínimo 10 caracteres)" value={form.password} onChange={(event) => setForm((value) => ({ ...value, password: event.target.value }))} required />
@@ -244,9 +299,13 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
             <div className="flex justify-end md:col-span-2">
               <button className="btn-primary w-full bg-blue-600 hover:bg-blue-700 sm:w-auto" disabled={processing}><Plus size={16} />{processing ? 'Salvando...' : 'Adicionar funcionário'}</button>
             </div>
-          </form>
-          <div className="mt-4 space-y-2">
-            {users.map((user) => (
+          </form>}
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block flex-1"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input-field pl-9" placeholder="Buscar por nome ou e-mail" value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} /></label>
+            <span className="text-xs font-bold text-slate-500">{activeUsers.length} de {users.length} contas ativas</span>
+          </div>
+          <div className="mt-3 space-y-2">
+            {visibleUsers.map((user) => (
               <div key={user.id} className="grid items-center gap-2 rounded-xl border border-slate-200 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto]">
                 <div className="min-w-0">
                   <p className="truncate font-bold text-slate-900">{user.name || user.email}</p>
@@ -258,11 +317,12 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                 <button className={`btn-secondary w-full md:w-auto ${user.active ? 'text-rose-700' : 'text-emerald-700'}`} disabled={processing} onClick={() => updateUser(user, { active: !user.active })}>{user.active ? 'Desativar' : 'Ativar'}</button>
               </div>
             ))}
+            {!visibleUsers.length && <div className="empty-state">Nenhuma pessoa encontrada.</div>}
           </div>
         </div>
       )}
 
-      {canManageUsers && (
+      {canManageUsers && activeTab === 'sessions' && (
         <div className="panel overflow-hidden">
           <header className="border-b border-slate-100 p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -273,7 +333,7 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                   <p className="text-xs text-slate-500">Login, última atividade, IP e dispositivo de cada pessoa.</p>
                 </div>
               </div>
-              <button type="button" className="btn-secondary w-full sm:w-auto" onClick={load}><RefreshCw size={16} />Atualizar</button>
+              <select className="input-field sm:w-48" value={sessionFilter} onChange={(event) => setSessionFilter(event.target.value)}><option value="active">Acessos ativos</option><option value="online">Online agora</option><option value="all">Todo o histórico</option></select>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-3 sm:max-w-md">
               <div className="rounded-xl bg-emerald-50 p-3"><p className="text-2xl font-extrabold text-emerald-700">{onlineSessions.length}</p><p className="text-xs font-semibold text-slate-500">online agora</p></div>
@@ -281,7 +341,7 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
             </div>
           </header>
           <div className="max-h-[34rem] space-y-2 overflow-auto p-3 sm:p-4">
-            {sessions.map((session) => (
+            {visibleSessions.map((session) => (
               <article key={session.id} className="grid gap-3 rounded-xl border border-slate-200 p-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-center">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -306,16 +366,18 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                 ) : <span className="text-center text-xs text-slate-400 lg:min-w-24">{session.current ? 'Em uso' : session.revokeReason || 'Sem acesso'}</span>}
               </article>
             ))}
-            {!sessions.length && <div className="py-10 text-center text-sm text-slate-500">Nenhum login registrado.</div>}
+            {!visibleSessions.length && <div className="py-10 text-center text-sm text-slate-500">Nenhum acesso encontrado neste filtro.</div>}
           </div>
         </div>
       )}
 
-      {canAudit && (
+      {canAudit && activeTab === 'audit' && (
         <div className="panel overflow-hidden">
           <header className="border-b border-slate-100 p-5">
-            <h2 className="font-extrabold text-slate-900">Auditoria completa</h2>
-            <p className="text-xs text-slate-500">Entradas, tentativas recusadas, alterações, usuário, origem e resultado.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><h2 className="font-extrabold text-slate-900">Auditoria completa</h2><p className="text-xs text-slate-500">Entradas, tentativas recusadas, alterações, usuário, origem e resultado.</p></div>
+              <label className="relative block sm:w-72"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="input-field pl-9" placeholder="Buscar no histórico" value={auditSearch} onChange={(event) => setAuditSearch(event.target.value)} /></label>
+            </div>
           </header>
           <div className="responsive-table-wrap max-h-[32rem] overflow-auto">
             <table className="responsive-data-table w-full min-w-[720px] text-left text-xs">
@@ -323,7 +385,7 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                 <tr><th className="px-4 py-3">Data</th><th className="px-4 py-3">Usuário</th><th className="px-4 py-3">Ação</th><th className="px-4 py-3">Área</th><th className="px-4 py-3">IP</th></tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {logs.map((log) => (
+                {visibleLogs.map((log) => (
                   <tr key={log.id} className={log.action === 'login_failed' ? 'bg-rose-50' : ''}>
                     <td data-label="Data" className="px-4 py-3">{formatDateTime(log.createdAt)}</td>
                     <td data-label="Usuário" className="break-all px-4 py-3">{auditUserLabel(log)}</td>
@@ -332,7 +394,7 @@ export default function SecurityPanel({ canManageUsers, canAudit }) {
                     <td data-label="IP" className="px-4 py-3">{ipLabel(log.ip)}</td>
                   </tr>
                 ))}
-                {!logs.length && <tr className="responsive-table-empty"><td colSpan="5" className="px-4 py-10 text-center text-slate-500">Nenhuma ação registrada.</td></tr>}
+                {!visibleLogs.length && <tr className="responsive-table-empty"><td colSpan="5" className="px-4 py-10 text-center text-slate-500">Nenhuma ação encontrada.</td></tr>}
               </tbody>
             </table>
           </div>

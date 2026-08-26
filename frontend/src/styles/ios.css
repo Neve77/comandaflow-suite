@@ -1,0 +1,90 @@
+.ios-setup-page {
+  position: relative;
+  display: grid;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: hidden;
+  place-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 18px max(24px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 20% 10%, rgba(16, 185, 129, 0.14), transparent 34%),
+    linear-gradient(160deg, #07101f 0%, #0c1222 50%, #111b30 100%);
+  color: #f8fafc;
+}
+
+.ios-setup-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.ios-setup-glow-one { top: -90px; right: -110px; width: 260px; height: 260px; background: rgba(14, 165, 233, 0.11); }
+.ios-setup-glow-two { bottom: -130px; left: -100px; width: 300px; height: 300px; background: rgba(16, 185, 129, 0.1); }
+
+.ios-setup-card {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 460px);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 28px;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.82);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(24px);
+}
+
+.ios-setup-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 34px; }
+.ios-setup-brand > span:last-child strong,
+.ios-setup-brand > span:last-child small { display: block; }
+.ios-setup-brand > span:last-child strong { font-size: 14px; font-weight: 850; }
+.ios-setup-brand > span:last-child small { margin-top: 1px; color: #94a3b8; font-size: 10px; font-weight: 650; }
+.ios-setup-logo { position: relative; display: grid; width: 42px; height: 42px; place-items: center; overflow: hidden; border-radius: 13px; background: linear-gradient(135deg, #10b981, #047857); }
+.ios-setup-logo img { width: 100%; height: 100%; object-fit: cover; }
+.ios-setup-logo strong { position: absolute; z-index: -1; font-size: 11px; color: #fff; }
+.ios-setup-icon { display: grid; width: 56px; height: 56px; place-items: center; border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 18px; background: rgba(16, 185, 129, 0.1); color: #34d399; }
+.ios-setup-eyebrow { margin-top: 18px; color: #34d399; font-size: 10px; font-weight: 850; letter-spacing: 0.14em; text-transform: uppercase; }
+.ios-setup-card h1 { margin-top: 7px; color: #fff; font-size: clamp(25px, 8vw, 34px); font-weight: 900; line-height: 1.06; letter-spacing: -0.035em; }
+.ios-setup-description { margin-top: 12px; color: #a8b3c7; font-size: 13px; line-height: 1.65; }
+.ios-setup-form { display: grid; gap: 11px; margin-top: 25px; }
+.ios-setup-form > label { display: flex; align-items: center; gap: 7px; color: #cbd5e1; font-size: 11px; font-weight: 750; }
+.ios-setup-input-wrap { display: flex; align-items: center; gap: 10px; min-height: 52px; border: 1px solid rgba(148, 163, 184, 0.24); border-radius: 14px; padding: 0 14px; background: rgba(2, 6, 23, 0.44); color: #64748b; transition: border-color 160ms, box-shadow 160ms; }
+.ios-setup-input-wrap:focus-within { border-color: #34d399; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.12); color: #34d399; }
+.ios-setup-input-wrap input { width: 100%; border: 0; outline: 0; background: transparent; color: #f8fafc; font-size: 16px; }
+.ios-setup-input-wrap input::placeholder { color: #64748b; }
+.ios-setup-form > button { display: flex; min-height: 52px; align-items: center; justify-content: center; gap: 9px; border: 0; border-radius: 14px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 850; box-shadow: 0 14px 30px rgba(5, 150, 105, 0.22); }
+.ios-setup-form > button:disabled { cursor: wait; opacity: 0.7; }
+.ios-setup-message { display: flex; align-items: flex-start; gap: 8px; border-radius: 12px; padding: 11px 12px; font-size: 12px; line-height: 1.45; }
+.ios-setup-error { border: 1px solid rgba(251, 113, 133, 0.25); background: rgba(159, 18, 57, 0.15); color: #fda4af; }
+.ios-setup-success { border: 1px solid rgba(52, 211, 153, 0.25); background: rgba(6, 95, 70, 0.16); color: #6ee7b7; }
+.ios-setup-security { display: flex; align-items: flex-start; gap: 9px; margin-top: 19px; border-top: 1px solid rgba(148, 163, 184, 0.13); padding-top: 17px; color: #8492a9; font-size: 10.5px; line-height: 1.5; }
+.ios-setup-security svg { flex-shrink: 0; color: #34d399; }
+
+html.cf-native-ios,
+html.cf-native-ios body,
+html.cf-native-ios #root { height: 100%; }
+
+html.cf-native-ios body { overscroll-behavior: none; -webkit-touch-callout: none; }
+html.cf-native-ios button,
+html.cf-native-ios a { -webkit-tap-highlight-color: transparent; }
+html.cf-native-ios input,
+html.cf-native-ios select,
+html.cf-native-ios textarea { font-size: max(16px, 1em); }
+html.cf-native-ios .app-layout { min-height: 100dvh; height: 100dvh; }
+html.cf-native-ios .sidebar { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+html.cf-native-ios .top-header { height: calc(var(--header-height) + env(safe-area-inset-top)); min-height: calc(var(--header-height) + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top); }
+html.cf-native-ios .content-area { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+
+@media (max-width: 639px) {
+  .ios-setup-card { border-radius: 23px; padding: 21px; }
+  html.cf-native-ios .top-header { height: calc(58px + env(safe-area-inset-top)); min-height: calc(58px + env(safe-area-inset-top)); }
+  html.cf-native-ios .content-area { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  html.cf-native-ios .login-shell { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  html.cf-native-ios .login-form-side { padding-bottom: max(30px, env(safe-area-inset-bottom)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ios-setup-input-wrap,
+  .ios-setup-form > button { transition: none; }
+}

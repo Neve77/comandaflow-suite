@@ -14,6 +14,12 @@ const syncSchema = z.object({
   deviceName: z.string().trim().max(200).optional(),
   appVersion: z.string().trim().max(50).optional(),
   platform: z.string().trim().max(80).optional(),
+  onboarding: z.object({
+    adminCreated: z.boolean().optional(),
+    menuConfigured: z.boolean().optional(),
+    firstOrder: z.boolean().optional(),
+    backupCreated: z.boolean().optional(),
+  }).optional(),
 });
 
 const receiptSchema = z.object({

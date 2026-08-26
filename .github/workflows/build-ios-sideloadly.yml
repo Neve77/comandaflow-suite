@@ -1,0 +1,89 @@
+name: Gerar IPA para Sideloadly
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-ios-sideloadly.yml'
+      - 'frontend/capacitor.config.json'
+      - 'frontend/.env.ios'
+      - 'frontend/ios/**'
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'frontend/src/**'
+      - 'frontend/index.html'
+      - 'backend/src/app.js'
+      - 'backend/src/server.js'
+
+permissions:
+  contents: read
+
+jobs:
+  build-ios:
+    name: ComandaFlow Restaurante iOS
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Baixar o projeto
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Mostrar versao do Xcode
+        run: xcodebuild -version
+
+      - name: Instalar dependencias do frontend
+        run: npm ci
+        working-directory: frontend
+
+      - name: Compilar e sincronizar o projeto iOS
+        run: npm run ios:sync
+        working-directory: frontend
+
+      - name: Compilar aplicativo sem assinatura
+        run: |
+          xcodebuild \
+            -project frontend/ios/App/App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath frontend/ios/build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Criar IPA para assinatura no Sideloadly
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          app_path="frontend/ios/build/Build/Products/Release-iphoneos/App.app"
+          output_dir="dist/ios"
+          ipa_name="ComandaFlow-Restaurante-${version}-Sideloadly.ipa"
+          test -d "$app_path"
+          mkdir -p "$output_dir/Payload"
+          cp -R "$app_path" "$output_dir/Payload/ComandaFlow.app"
+          (
+            cd "$output_dir"
+            zip -qry "$ipa_name" Payload
+            shasum -a 256 "$ipa_name" > "$ipa_name.sha256"
+          )
+
+      - name: Disponibilizar IPA para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: ComandaFlow-Restaurante-iOS-Sideloadly
+          path: |
+            dist/ios/*.ipa
+            dist/ios/*.sha256
+          if-no-files-found: error
+          retention-days: 30

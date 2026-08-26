@@ -95,6 +95,12 @@ async function main() {
     deviceName: 'Caixa Teste',
     appVersion: '2.3.0',
     platform: 'win32-x64',
+    onboarding: {
+      adminCreated: true,
+      menuConfigured: true,
+      firstOrder: true,
+      backupCreated: true,
+    },
   };
   await request(app).post('/license/sync').send(syncPayload).expect(200).expect(({ body }) => {
     if (!body.allowed || body.warning) throw new Error('A assinatura ativa foi negada pelo servidor.');
@@ -110,6 +116,17 @@ async function main() {
   if (!monitoring.body.generatedAt || monitoring.body.onlineWindowSeconds !== 180) {
     throw new Error('O monitoramento nao informou a janela e o horario da sincronizacao.');
   }
+  const pulse = await request(app).get('/manager/pulse').set('Authorization', authorization).expect(200);
+  if (pulse.body.clients[0]?.subscriberId !== created.body.subscriber.id || pulse.body.clients[0]?.onboarding?.completed !== 7) {
+    throw new Error('O ComandaFlow Pulse não calculou saúde e onboarding automaticamente.');
+  }
+  await request(app).patch(`/manager/subscribers/${created.body.subscriber.id}/onboarding/printerTested`).set('Authorization', authorization).send({ completed: true }).expect(200);
+  await request(app).patch(`/manager/subscribers/${created.body.subscriber.id}/onboarding/trainingCompleted`).set('Authorization', authorization).send({ completed: true }).expect(200);
+  await request(app).get(`/manager/subscribers/${created.body.subscriber.id}/profile`).set('Authorization', authorization).expect(200).expect(({ body }) => {
+    if (!body.onboarding?.complete || body.onboarding.percentage !== 100 || !body.timeline?.length || body.subscriber.businessName !== 'Restaurante de Teste') {
+      throw new Error('A ficha completa do assinante não consolidou onboarding e histórico.');
+    }
+  });
 
   const sentMessage = await request(app).post('/manager/messages').set('Authorization', authorization).send({
     subscriberIds: [created.body.subscriber.id], title: 'Aviso de teste', body: 'Mensagem integrada do Gestor.', severity: 'aviso',
@@ -157,6 +174,11 @@ async function main() {
       throw new Error('A central de notificações não informou o chamado em andamento.');
     }
   });
+  await request(app).get('/manager/pending').set('Authorization', authorization).expect(200).expect(({ body }) => {
+    if (!body.items.some((item) => item.subscriberId === created.body.subscriber.id && item.type === 'support' && item.severity === 'critical')) {
+      throw new Error('A central de pendências não priorizou o chamado urgente.');
+    }
+  });
 
   const suspensionMessage = 'Pagamento nao identificado. Fale conosco para liberar o sistema.';
   await request(app)
@@ -167,6 +189,22 @@ async function main() {
   await request(app).post('/license/sync').send(syncPayload).expect(200).expect(({ body }) => {
     if (body.allowed || body.status !== 'suspenso' || body.message !== suspensionMessage) {
       throw new Error('O bloqueio imediato nao foi aplicado corretamente.');
+    }
+  });
+  const suspendedTicket = await request(app).post('/license/support/remote/tickets').send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: syncPayload.installationId,
+    actorName: 'Restaurante suspenso',
+    subject: 'Ajuda para regularizar assinatura',
+    description: 'O suporte precisa continuar disponível durante a suspensão.',
+    priority: 'alta',
+  }).expect(201);
+  await request(app).post('/license/support/remote/tickets/list').send({
+    licenseKey: syncPayload.licenseKey,
+    installationId: syncPayload.installationId,
+  }).expect(200).expect(({ body }) => {
+    if (!body.tickets.some((item) => item.id === suspendedTicket.body.ticket.id)) {
+      throw new Error('A conta suspensa não conseguiu acompanhar o chamado de regularização.');
     }
   });
 
@@ -255,8 +293,8 @@ async function main() {
     .set('Content-Type', 'application/octet-stream')
     .send(fakeInstaller)
     .expect(201);
-  if (fs.existsSync(previousClientInstaller)) {
-    throw new Error('O instalador anterior do restaurante não foi removido após a nova publicação.');
+  if (!fs.existsSync(previousClientInstaller)) {
+    throw new Error('O instalador estável anterior não foi preservado para restauração.');
   }
   if (!licenseService.verifyUpdateManifest(published.body.manifest, published.body.signature)) {
     throw new Error('A assinatura digital da atualizacao publicada e invalida.');
@@ -272,6 +310,10 @@ async function main() {
     if (body.available) throw new Error('A atualização pausada ainda foi anunciada.');
   });
   await request(app).patch('/updates/published/control').set('Authorization', authorization).send({ action: 'resume' }).expect(200);
+  await request(app).patch('/updates/published/control').set('Authorization', authorization).send({ action: 'percentage', rolloutPercentage: 100 }).expect(200);
+  await request(app).get(`/updates/latest?currentVersion=2.3.0&licenseId=${issued.body.subscription.id}`).expect(200).expect(({ body }) => {
+    if (!body.available) throw new Error('O rollout percentual não selecionou o assinante elegível.');
+  });
   await request(app)
     .get(`/updates/download/${published.body.manifest.id}?licenseId=${issued.body.subscription.id}`)
     .expect(200)
@@ -353,6 +395,15 @@ async function main() {
   await request(app).patch('/updates/published/control').set('Authorization', authorization).send({ action: 'withdraw' }).expect(200);
   await request(app).get(`/updates/latest?currentVersion=2.3.0&licenseId=${issued.body.subscription.id}`).expect(200).expect(({ body }) => {
     if (body.available) throw new Error('A atualização retirada ainda foi anunciada.');
+  });
+  const updateDashboard = await request(app).get('/updates/published?product=client').set('Authorization', authorization).expect(200);
+  const stablePrevious = updateDashboard.body.history.find((item) => item.manifest?.version === '9.9.8');
+  if (!stablePrevious?.available || updateDashboard.body.rollout?.targetVersion !== '9.9.9') {
+    throw new Error('O painel de rollout não informou histórico e progresso da publicação.');
+  }
+  await request(app).patch('/updates/published/control').set('Authorization', authorization).send({ action: 'rollback', targetId: stablePrevious.manifest.id }).expect(200);
+  await request(app).get(`/updates/latest?currentVersion=2.3.0&licenseId=${issued.body.subscription.id}`).expect(200).expect(({ body }) => {
+    if (!body.available || body.manifest?.version !== '9.9.8') throw new Error('A versão estável anterior não foi restaurada.');
   });
 
   const managerPublishStart = await request(app)

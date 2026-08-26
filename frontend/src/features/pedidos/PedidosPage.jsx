@@ -6,10 +6,14 @@ import LoadingSpinner from '../../shared/components/LoadingSpinner';
 export default function PedidosPage() {
   const [pedidos, setPedidos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatingPedidoId, setUpdatingPedidoId] = useState('');
   const [error, setError] = useState('');
+  const [now, setNow] = useState(() => Date.now());
 
   const fetchPedidos = async (showLoading = false) => {
     if (showLoading) setLoading(true);
+    else setRefreshing(true);
     setError('');
     try {
       const response = await api.get('/pedidos/active');
@@ -18,6 +22,7 @@ export default function PedidosPage() {
       setError(err.response?.data?.message || 'Erro ao carregar pedidos.');
     } finally {
       if (showLoading) setLoading(false);
+      else setRefreshing(false);
     }
   };
 
@@ -32,21 +37,28 @@ export default function PedidosPage() {
     socket.on('pedido-status-updated', handleUpdate);
     socket.on('pedido-cancelled', handleUpdate);
     socket.on('comanda-closed', handleUpdate);
+    const clockInterval = window.setInterval(() => setNow(Date.now()), 30_000);
 
     return () => {
       socket.off('pedido-added', handleUpdate);
       socket.off('pedido-status-updated', handleUpdate);
       socket.off('pedido-cancelled', handleUpdate);
       socket.off('comanda-closed', handleUpdate);
+      window.clearInterval(clockInterval);
     };
   }, []);
 
   const handleUpdateStatus = async (pedidoId, newStatus) => {
+    if (updatingPedidoId) return;
+    setUpdatingPedidoId(pedidoId);
+    setError('');
     try {
       await api.patch(`/pedidos/${pedidoId}/status`, { status: newStatus });
       await fetchPedidos();
     } catch (err) {
       setError(err.response?.data?.message || 'Erro ao atualizar status do pedido.');
+    } finally {
+      setUpdatingPedidoId('');
     }
   };
 
@@ -55,7 +67,7 @@ export default function PedidosPage() {
   const prontos = pedidos.filter((p) => p.status === 'pronto');
 
   const getElapsedTime = (dateString) => {
-    const diff = Math.floor((Date.now() - new Date(dateString).getTime()) / 60000);
+    const diff = Math.max(0, Math.floor((now - new Date(dateString).getTime()) / 60000));
     if (diff < 1) return 'Agora';
     if (diff === 1) return '1 min';
     return `${diff} min`;
@@ -70,7 +82,7 @@ export default function PedidosPage() {
           <div>
             <h1 className="section-title flex items-center gap-2">
               <ChefHat className="text-blue-600" size={28} />
-              Acompanhamento de Pedidos (Cozinha / Bar)
+              Cozinha e Bar
             </h1>
             <p className="section-subtitle">
               Controle visual dos pedidos em tempo real. Toque nos botões para avançar o estado.
@@ -78,11 +90,12 @@ export default function PedidosPage() {
           </div>
           <button
             type="button"
-            onClick={() => fetchPedidos(true)}
+            onClick={() => fetchPedidos()}
             className="btn-secondary btn-sm self-start"
+            disabled={refreshing}
           >
-            <RefreshCw size={18} />
-            <span>Atualizar</span>
+            <RefreshCw className={refreshing ? 'animate-spin' : ''} size={18} />
+            <span>{refreshing ? 'Atualizando' : 'Atualizar'}</span>
           </button>
         </div>
       </section>
@@ -143,9 +156,10 @@ export default function PedidosPage() {
                     type="button"
                     onClick={() => handleUpdateStatus(pedido.id, 'em_preparo')}
                     className="btn-primary btn-sm mt-4 w-full"
+                    disabled={Boolean(updatingPedidoId)}
                   >
                     <Play size={16} />
-                    <span>Iniciar Preparo</span>
+                    <span>{updatingPedidoId === pedido.id ? 'Atualizando...' : 'Iniciar preparo'}</span>
                   </button>
                 </div>
               ))
@@ -201,9 +215,10 @@ export default function PedidosPage() {
                     type="button"
                     onClick={() => handleUpdateStatus(pedido.id, 'pronto')}
                     className="btn-success btn-sm mt-4 w-full"
+                    disabled={Boolean(updatingPedidoId)}
                   >
                     <CheckCircle size={16} />
-                    <span>Marcar Pronto</span>
+                    <span>{updatingPedidoId === pedido.id ? 'Atualizando...' : 'Marcar como pronto'}</span>
                   </button>
                 </div>
               ))
@@ -258,9 +273,10 @@ export default function PedidosPage() {
                     type="button"
                     onClick={() => handleUpdateStatus(pedido.id, 'entregue')}
                     className="btn-primary btn-sm mt-4 w-full bg-emerald-600 hover:bg-emerald-700"
+                    disabled={Boolean(updatingPedidoId)}
                   >
                     <CheckCheck size={16} />
-                    <span>Confirmar Entrega</span>
+                    <span>{updatingPedidoId === pedido.id ? 'Atualizando...' : 'Confirmar entrega'}</span>
                   </button>
                 </div>
               ))

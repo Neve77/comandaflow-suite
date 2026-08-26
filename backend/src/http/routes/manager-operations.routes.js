@@ -29,7 +29,14 @@ const ticketUpdateSchema = z.object({
 
 router.use(managerOnly, authenticate);
 router.get('/notifications', authorize.permission('subscriptions:read'), controller.notifications);
+router.get('/pulse', authorize.permission('monitoring:read', 'subscriptions:read'), controller.pulse);
+router.get('/pending', authorize.permission('monitoring:read', 'subscriptions:read'), controller.pending);
 router.get('/monitoring', authorize.permission('monitoring:read'), controller.monitoring);
+router.get('/subscribers/:id/profile', authorize.permission('subscriptions:read'), controller.subscriberProfile);
+router.patch('/subscribers/:id/onboarding/:step', authorize.permission('subscriptions:write'), validate(z.object({
+  completed: z.boolean(),
+  note: z.string().trim().max(500).optional().or(z.literal('')),
+})), controller.setOnboardingStep);
 router.get('/messages', authorize.permission('messages:read'), controller.listMessages);
 router.post('/messages', authorize.permission('messages:write'), validate(messageSchema), controller.sendMessage);
 router.post('/messages/:id/deactivate', authorize.permission('messages:write'), controller.deactivateMessage);

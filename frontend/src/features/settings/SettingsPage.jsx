@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Settings, Store, Save, Printer, QrCode, KeyRound, ShieldCheck } from 'lucide-react';
+import { Settings, Store, Save, Printer, QrCode, KeyRound, ShieldCheck, Server, Smartphone } from 'lucide-react';
 import api from '../../shared/services/api';
+import { clearMobileServerUrl, getConfiguredMobileServerUrl, isNativeIOS } from '../../shared/config/config';
 
 export default function SettingsPage() {
+  const nativeIOS = isNativeIOS();
+  const mobileServerUrl = getConfiguredMobileServerUrl();
   const [restauranteNome, setRestauranteNome] = useState(
     localStorage.getItem('cf_nome_restaurante') || 'Meu Restaurante'
   );
@@ -53,13 +56,27 @@ export default function SettingsPage() {
 
   const handleSave = (e) => {
     e.preventDefault();
-    localStorage.setItem('cf_nome_restaurante', restauranteNome);
-    localStorage.setItem('cf_taxa_servico', taxaServico);
-    localStorage.setItem('cf_chave_pix', chavePix);
+    const normalizedName = restauranteNome.trim();
+    const normalizedFee = String(Math.min(30, Math.max(0, Number(taxaServico) || 0)));
+    localStorage.setItem('cf_nome_restaurante', normalizedName);
+    localStorage.setItem('cf_taxa_servico', normalizedFee);
+    localStorage.setItem('cf_chave_pix', chavePix.trim());
     localStorage.setItem('cf_tipo_chave_pix', tipoChavePix);
-    localStorage.setItem('cf_mensagem_cupom', mensagemCupom);
+    localStorage.setItem('cf_mensagem_cupom', mensagemCupom.trim());
+    setRestauranteNome(normalizedName);
+    setTaxaServico(normalizedFee);
+    setChavePix(chavePix.trim());
+    setMensagemCupom(mensagemCupom.trim());
+    window.dispatchEvent(new CustomEvent('comanda:restaurant-settings-updated', { detail: { name: normalizedName } }));
     setMessage('Configurações salvas com sucesso!');
     setTimeout(() => setMessage(''), 4000);
+  };
+
+  const handleChangeMobileServer = () => {
+    localStorage.removeItem('comanda_token');
+    localStorage.removeItem('comanda_user');
+    clearMobileServerUrl();
+    window.location.reload();
   };
 
   return (
@@ -82,6 +99,24 @@ export default function SettingsPage() {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
           {message}
         </div>
+      )}
+
+      {nativeIOS && (
+        <section className="panel p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-sky-100 p-2.5 text-sky-700"><Smartphone size={24} /></div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900">Aplicativo iOS conectado</h2>
+                <p className="mt-1 text-xs text-slate-500">Servidor atual</p>
+                <p className="mt-1 break-all text-sm font-semibold text-slate-700">{mobileServerUrl}</p>
+              </div>
+            </div>
+            <button type="button" className="btn-secondary justify-center" onClick={handleChangeMobileServer}>
+              <Server size={17} /> Alterar servidor
+            </button>
+          </div>
+        </section>
       )}
 
       <section className="panel p-6">

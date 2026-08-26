@@ -9,6 +9,7 @@ import {
 } from '../config/manager-navigation';
 import UpdatePrompt from '../../features/updates/UpdatePrompt';
 import NotificationCenter from './NotificationCenter';
+import { isNativeIOS } from '../config/config';
 import {
   LayoutDashboard,
   ClipboardList,
@@ -27,6 +28,7 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
+  ChevronDown,
   Headphones,
 } from 'lucide-react';
 
@@ -47,18 +49,23 @@ export default function Layout() {
   const { logout, user, system } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen]   = useState(false);
-  const [darkMode, setDarkMode]               = useState(() => localStorage.getItem('cf_dark') === 'true');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [darkMode, setDarkMode]               = useState(() => {
+    const savedTheme = localStorage.getItem('cf_dark');
+    return savedTheme === 'true'
+      || (savedTheme === null && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
   const [online, setOnline]                   = useState(navigator.onLine);
   const [licenseStatus, setLicenseStatus]     = useState(null);
+  const [configuredRestaurantName, setConfiguredRestaurantName] = useState(() => localStorage.getItem('cf_nome_restaurante') || 'Meu Restaurante');
 
   const managerMode = system.subscriptionManager;
+  const nativeIOS = isNativeIOS();
   const managerLinks = managerNavigation.filter((item) => canAccessManagerItem(item, user));
   const links = managerMode ? managerLinks : restaurantLinks;
   const currentManagerItem = managerMode ? managerItemForPath(location.pathname) : null;
   const currentRestaurantItem = managerMode ? null : restaurantLinks.find((item) => location.pathname === item.to);
-  const restaurantName = managerMode
-    ? 'Painel do Proprietario'
-    : (localStorage.getItem('cf_nome_restaurante') || 'Meu Restaurante');
+  const restaurantName = managerMode ? 'Painel do Proprietario' : configuredRestaurantName;
   const headerTitle = currentManagerItem?.label || currentRestaurantItem?.label || restaurantName;
   const userInitials   = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -67,6 +74,26 @@ export default function Layout() {
     document.documentElement.classList.toggle('dark', darkMode);
     localStorage.setItem('cf_dark', darkMode);
   }, [darkMode]);
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setAccountMenuOpen(false);
+  }, [location.pathname]);
+  useEffect(() => {
+    if (!mobileMenuOpen && !accountMenuOpen) return undefined;
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+        setAccountMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [accountMenuOpen, mobileMenuOpen]);
+  useEffect(() => {
+    const updateRestaurantName = (event) => setConfiguredRestaurantName(event.detail?.name || localStorage.getItem('cf_nome_restaurante') || 'Meu Restaurante');
+    window.addEventListener('comanda:restaurant-settings-updated', updateRestaurantName);
+    return () => window.removeEventListener('comanda:restaurant-settings-updated', updateRestaurantName);
+  }, []);
   useEffect(() => {
     const on  = () => setOnline(true);
     const off = () => setOnline(false);
@@ -86,11 +113,13 @@ export default function Layout() {
           : await api.get('/license/status');
         if (!active) return;
         const nextStatus = force ? response.data.license : response.data;
+        setLicenseStatus(nextStatus);
         if (!nextStatus.valid) {
-          window.dispatchEvent(new Event('comanda:license-required'));
+          if (location.pathname !== '/support') {
+            window.dispatchEvent(new CustomEvent('comanda:license-required', { detail: nextStatus }));
+          }
           return;
         }
-        setLicenseStatus(nextStatus);
       } catch {
         // O backend controla a tolerância offline; uma falha isolada não bloqueia a operação.
       }
@@ -115,7 +144,7 @@ export default function Layout() {
       window.removeEventListener('focus', refreshAfterResume);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
-  }, [managerMode]);
+  }, [location.pathname, managerMode]);
 
   const managedRemotely = !managerMode && Boolean(licenseStatus?.onlineManaged);
   const managerConnected = managedRemotely
@@ -142,14 +171,15 @@ export default function Layout() {
 
   return (
     <div className="app-layout">
-      {!managerMode && <UpdatePrompt />}
+      {!managerMode && !nativeIOS && <UpdatePrompt />}
       {mobileMenuOpen && (
         <div
           className="sidebar-overlay lg:hidden"
+          aria-hidden="true"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
-      <aside className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`}>
+      <aside id="main-navigation" className={`sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`} aria-label="Navegação principal">
         <div className="sidebar-brand">
           <div className="sidebar-brand-logo" style={{ background: 'transparent', boxShadow: 'none', padding: 0 }}>
             <img
@@ -167,6 +197,14 @@ export default function Layout() {
             <h1>{managerMode ? 'ComandaFlow Gestor' : 'ComandaFlow'}</h1>
             <p>{restaurantName}</p>
           </div>
+          <button
+            type="button"
+            className="sidebar-close-button lg:hidden"
+            aria-label="Fechar menu"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <X size={19} />
+          </button>
         </div>
         <div className="sidebar-status" title={lastSyncLabel ? `Ultima sincronizacao: ${lastSyncLabel}` : connectionLabel} style={{ color: connectionColor, background: connectionBackground, borderColor: connectionBorder }}>
           <span className="sidebar-status-dot" style={{ background: managerConnected ? undefined : online ? '#f59e0b' : '#ef4444', boxShadow: managerConnected ? undefined : online ? '0 0 6px rgba(245,158,11,0.5)' : '0 0 6px rgba(239,68,68,0.5)' }} />
@@ -256,11 +294,13 @@ export default function Layout() {
           <div className="top-header-left">
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden btn-icon mr-1"
+              onClick={() => setMobileMenuOpen(true)}
+              className="mobile-menu-button lg:hidden"
               aria-label="Abrir menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="main-navigation"
             >
-              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+              <Menu size={20} />
             </button>
 
             <div>
@@ -281,20 +321,23 @@ export default function Layout() {
             >
               {darkMode ? <Sun size={17} /> : <Moon size={17} />}
             </button>
-            <button type="button" className="header-icon-btn" title={lastSyncLabel ? `${connectionLabel}. Ultima sincronizacao: ${lastSyncLabel}` : connectionLabel}>
+            <span className="header-icon-btn header-status-indicator" title={lastSyncLabel ? `${connectionLabel}. Ultima sincronizacao: ${lastSyncLabel}` : connectionLabel} aria-label={connectionLabel}>
               {online
                 ? <Wifi size={17} style={{ color: managerConnected ? '#10b981' : '#f59e0b' }} />
                 : <WifiOff size={17} style={{ color: '#ef4444' }} />
               }
-            </button>
+            </span>
             <NotificationCenter managerMode={managerMode} userId={user?.id} licenseStatus={licenseStatus} />
-            <div
-              className="header-avatar"
-              style={{ marginLeft: 4, cursor: 'pointer' }}
-              onClick={logout}
-              title="Sair do sistema"
-            >
-              {userInitials}
+            <div className="header-account">
+              <button type="button" className="header-account-trigger" aria-label="Abrir menu da conta" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((value) => !value)}>
+                <span className="header-avatar">{userInitials}</span>
+                <ChevronDown className="header-account-chevron" size={14} />
+              </button>
+              {accountMenuOpen && <><button type="button" className="header-account-backdrop" aria-label="Fechar menu da conta" onClick={() => setAccountMenuOpen(false)} /><div className="header-account-popover">
+                <div className="header-account-profile"><span className="header-account-avatar">{userInitials}</span><span><strong>{user?.name || 'Administrador'}</strong><small>{user?.email || (managerMode ? 'Gestor' : restaurantName)}</small></span></div>
+                <div className="header-account-role">Perfil: <strong>{user?.role || 'operador'}</strong></div>
+                <button type="button" className="header-account-logout" onClick={logout}><LogOut size={16} />Sair com segurança</button>
+              </div></>}
             </div>
           </div>
         </header>

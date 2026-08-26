@@ -11,6 +11,10 @@ const PUBLISHED_KEYS = {
   client: 'publishedClientUpdate',
   manager: 'publishedManagerUpdate',
 };
+const HISTORY_KEYS = {
+  client: 'clientUpdateHistory',
+  manager: 'managerUpdateHistory',
+};
 const PRODUCTS = {
   client: { manifestName: 'ComandaFlow', filePrefix: 'ComandaFlow-Setup' },
   manager: { manifestName: 'ComandaFlow Gestor', filePrefix: 'ComandaFlow-Gestor-Setup' },
@@ -75,7 +79,16 @@ const readPublished = async (product = 'client') => {
   try { return JSON.parse(record.value); } catch { return null; }
 };
 
-const startPublication = ({ product = 'client', version, releaseNotes, mandatory, fileName, size, rollout, pilotSubscriberIds }) => {
+const readHistory = async (product = 'client') => {
+  const record = await prisma.systemSetting.findUnique({ where: { key: HISTORY_KEYS[product] } });
+  if (!record) return [];
+  try {
+    const parsed = JSON.parse(record.value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
+const startPublication = ({ product = 'client', version, releaseNotes, mandatory, fileName, size, rollout, rolloutPercentage, pilotSubscriberIds }) => {
   if (!PRODUCTS[product]) throw Object.assign(new Error('Aplicativo de destino inválido.'), { status: 400 });
   if (product === 'manager' && compareVersions(version, resolveCurrentVersion()) <= 0) {
     throw Object.assign(new Error(`A versão do Gestor deve ser superior à ${resolveCurrentVersion()}.`), { status: 400 });
@@ -90,6 +103,7 @@ const startPublication = ({ product = 'client', version, releaseNotes, mandatory
     fileName: path.basename(String(fileName || 'ComandaFlow-Setup.exe')),
     size: Number(size),
     rollout: product === 'client' ? rollout || 'all' : 'local',
+    rolloutPercentage: product === 'client' ? Number(rolloutPercentage || 10) : 100,
     pilotSubscriberIds: product === 'client' ? [...new Set(pilotSubscriberIds || [])] : [],
     expiresAt: Date.now() + 30 * 60 * 1000,
   };
@@ -155,21 +169,32 @@ const receivePublication = async (request, token) => {
       control: {
         state: 'active',
         audience: upload.rollout,
+        rolloutPercentage: upload.rollout === 'percentage' ? upload.rolloutPercentage : 100,
         pilotSubscriberIds: upload.pilotSubscriberIds,
         updatedAt: publishedAt,
       },
     };
-    await prisma.systemSetting.upsert({
-      where: { key: PUBLISHED_KEYS[upload.product] },
-      create: { key: PUBLISHED_KEYS[upload.product], value: JSON.stringify(published) },
-      update: { value: JSON.stringify(published) },
-    });
+    const history = await readHistory(upload.product);
+    const nextHistory = previous
+      ? [previous, ...history.filter((item) => item?.manifest?.id !== previous.manifest?.id)].slice(0, 5)
+      : history.slice(0, 5);
+    await prisma.$transaction([
+      prisma.systemSetting.upsert({
+        where: { key: PUBLISHED_KEYS[upload.product] },
+        create: { key: PUBLISHED_KEYS[upload.product], value: JSON.stringify(published) },
+        update: { value: JSON.stringify(published) },
+      }),
+      prisma.systemSetting.upsert({
+        where: { key: HISTORY_KEYS[upload.product] },
+        create: { key: HISTORY_KEYS[upload.product], value: JSON.stringify(nextHistory) },
+        update: { value: JSON.stringify(nextHistory) },
+      }),
+    ]);
 
-    if (previous?.storageName && previous.storageName !== storageName) {
-      const previousPath = path.resolve(updatesDir, previous.storageName);
-      if (previousPath.startsWith(`${path.resolve(updatesDir)}${path.sep}`)) {
-        safeRemoveUpdateFile(previousPath);
-      }
+    const retainedNames = new Set(nextHistory.map((item) => item?.storageName).filter(Boolean));
+    for (const item of history) {
+      if (!item?.storageName || retainedNames.has(item.storageName) || item.storageName === storageName) continue;
+      safeRemoveUpdateFile(path.join(updatesDir, item.storageName));
     }
     return { manifest, signature, product: upload.product };
   } catch (error) {
@@ -190,13 +215,30 @@ const getPublished = async (product = 'client') => {
   return { ...published, filePath };
 };
 
-const isEligible = async (published, licenseId) => {
+const rolloutBucket = (updateId, subscriberId) => {
+  const digest = crypto.createHash('sha256').update(`${updateId}:${subscriberId}`).digest();
+  return (digest.readUInt32BE(0) % 100) + 1;
+};
+
+const subscriberEligible = (published, subscriberId) => {
   const control = published.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] };
   if (control.state !== 'active') return false;
   if (control.audience !== 'pilot') return true;
+  return Boolean(subscriberId && control.pilotSubscriberIds?.includes(subscriberId));
+};
+
+const isEligible = async (published, licenseId) => {
+  const control = published.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] };
+  if (control.state !== 'active') return false;
+  if (control.audience === 'all') return true;
   if (!licenseId) return false;
   const subscription = await prisma.subscription.findUnique({ where: { id: licenseId }, select: { subscriberId: true } });
-  return Boolean(subscription && control.pilotSubscriberIds?.includes(subscription.subscriberId));
+  if (!subscription) return false;
+  if (control.audience === 'pilot') return subscriberEligible(published, subscription.subscriberId);
+  if (control.audience === 'percentage') {
+    return rolloutBucket(published.manifest.id, subscription.subscriberId) <= Number(control.rolloutPercentage || 0);
+  }
+  return false;
 };
 
 const getLatest = async (currentVersion, licenseId) => {
@@ -215,7 +257,43 @@ const getPublishedFile = async (id, licenseId) => {
   return published;
 };
 
-const controlPublication = async ({ action, pilotSubscriberIds }) => {
+const rollbackPublication = async (targetId) => {
+  const current = await readPublished('client');
+  if (!current) throw Object.assign(new Error('Nenhuma atualização publicada.'), { status: 404 });
+  const history = await readHistory('client');
+  const target = targetId
+    ? history.find((item) => item?.manifest?.id === targetId)
+    : history[0];
+  if (!target) throw Object.assign(new Error('Nenhuma versão anterior está disponível para restauração.'), { status: 404 });
+  const targetPath = path.resolve(getUpdatesDir(), String(target.storageName || ''));
+  if (!targetPath.startsWith(`${path.resolve(getUpdatesDir())}${path.sep}`) || !fs.existsSync(targetPath)) {
+    throw Object.assign(new Error('O instalador da versão anterior não está mais disponível.'), { status: 410 });
+  }
+  const restoredAt = new Date().toISOString();
+  const restored = {
+    ...target,
+    control: {
+      ...(target.control || {}),
+      state: 'active',
+      restoredFrom: current.manifest?.id || null,
+      restoredAt,
+      updatedAt: restoredAt,
+    },
+  };
+  const nextHistory = [current, ...history.filter((item) => item?.manifest?.id !== target.manifest?.id && item?.manifest?.id !== current.manifest?.id)].slice(0, 5);
+  await prisma.$transaction([
+    prisma.systemSetting.update({ where: { key: PUBLISHED_KEYS.client }, data: { value: JSON.stringify(restored) } }),
+    prisma.systemSetting.upsert({
+      where: { key: HISTORY_KEYS.client },
+      create: { key: HISTORY_KEYS.client, value: JSON.stringify(nextHistory) },
+      update: { value: JSON.stringify(nextHistory) },
+    }),
+  ]);
+  return { manifest: restored.manifest, signature: restored.signature, control: restored.control };
+};
+
+const controlPublication = async ({ action, pilotSubscriberIds, rolloutPercentage, targetId }) => {
+  if (action === 'rollback') return rollbackPublication(targetId);
   const published = await readPublished('client');
   if (!published) throw Object.assign(new Error('Nenhuma atualização publicada.'), { status: 404 });
   const control = published.control || { state: 'active', audience: 'all', pilotSubscriberIds: [] };
@@ -228,10 +306,68 @@ const controlPublication = async ({ action, pilotSubscriberIds }) => {
     control.audience = 'pilot';
     control.pilotSubscriberIds = [...new Set(pilotSubscriberIds || [])];
   }
+  if (action === 'percentage') {
+    control.state = 'active';
+    control.audience = 'percentage';
+    control.rolloutPercentage = Math.max(1, Math.min(100, Number(rolloutPercentage || 10)));
+  }
   control.updatedAt = new Date().toISOString();
   published.control = control;
   await prisma.systemSetting.update({ where: { key: PUBLISHED_KEYS.client }, data: { value: JSON.stringify(published) } });
   return { manifest: published.manifest, signature: published.signature, control };
+};
+
+const getPublicationHistory = async (product = 'client') => {
+  const updatesDir = path.resolve(getUpdatesDir());
+  return (await readHistory(product)).map((item) => {
+    const filePath = path.resolve(updatesDir, String(item.storageName || ''));
+    return {
+      manifest: item.manifest,
+      control: item.control,
+      available: filePath.startsWith(`${updatesDir}${path.sep}`) && fs.existsSync(filePath),
+    };
+  });
+};
+
+const getRolloutStatus = async () => {
+  const published = await getPublished('client');
+  if (!published) return null;
+  const subscribers = await prisma.subscriber.findMany({
+    where: { status: 'ativo' },
+    include: {
+      subscriptions: {
+        where: { status: 'ativo' },
+        include: { installations: { where: { active: true }, orderBy: { lastSeenAt: 'desc' } } },
+      },
+    },
+  });
+  const targeted = subscribers.filter((subscriber) => {
+    const control = published.control || {};
+    if (control.state !== 'active') return false;
+    if (control.audience === 'pilot') return control.pilotSubscriberIds?.includes(subscriber.id);
+    if (control.audience === 'percentage') return rolloutBucket(published.manifest.id, subscriber.id) <= Number(control.rolloutPercentage || 0);
+    return true;
+  });
+  const clients = targeted.map((subscriber) => {
+    const installation = subscriber.subscriptions[0]?.installations?.[0] || null;
+    const installed = Boolean(installation?.appVersion && compareVersions(installation.appVersion, published.manifest.version) >= 0);
+    return {
+      subscriberId: subscriber.id,
+      businessName: subscriber.businessName,
+      installed,
+      appVersion: installation?.appVersion || null,
+      lastSeenAt: installation?.lastSeenAt || null,
+    };
+  });
+  return {
+    targetVersion: published.manifest.version,
+    audience: published.control?.audience || 'all',
+    percentage: published.control?.audience === 'percentage' ? Number(published.control.rolloutPercentage || 0) : published.control?.audience === 'all' ? 100 : null,
+    targeted: clients.length,
+    installed: clients.filter((client) => client.installed).length,
+    pending: clients.filter((client) => !client.installed).length,
+    clients,
+  };
 };
 
 const publicClientState = () => {
@@ -290,6 +426,9 @@ const cleanupUpdateArtifacts = async () => {
   const keep = new Set();
   const clientPublished = await getPublished('client');
   if (clientPublished?.storageName) keep.add(clientPublished.storageName);
+  for (const item of await readHistory('client')) {
+    if (item?.storageName) keep.add(item.storageName);
+  }
 
   const managerPublished = await getPublished('manager');
   if (managerPublished) {
@@ -300,6 +439,9 @@ const cleanupUpdateArtifacts = async () => {
     } else {
       keep.add(managerPublished.storageName);
     }
+  }
+  for (const item of await readHistory('manager')) {
+    if (item?.storageName) keep.add(item.storageName);
   }
   if (clientState.status === 'ready' && clientState.downloadPath) {
     keep.add(path.basename(clientState.downloadPath));
@@ -541,8 +683,10 @@ module.exports = {
   getClientState: publicClientState,
   getLatest,
   getManagerUpdateStatus,
+  getPublicationHistory,
   getPublished,
   getPublishedFile,
+  getRolloutStatus,
   installDownloaded,
   installManagerUpdate,
   receivePublication,

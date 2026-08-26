@@ -17,7 +17,12 @@ const isAllowedOrigin = (origin) => {
   if (process.env.COMANDAFLOW_DESKTOP === 'true' && (origin === 'null' || origin.startsWith('file://'))) {
     return true;
   }
-  const allowed = [process.env.FRONTEND_URL, 'http://127.0.0.1:5173'].filter(Boolean);
+  const allowed = [
+    process.env.FRONTEND_URL,
+    'http://127.0.0.1:5173',
+    'capacitor://localhost',
+    'ionic://localhost',
+  ].filter(Boolean);
   return allowed.includes(origin) || (process.env.NODE_ENV !== 'production' && /^https?:\/\/(?:localhost|127\.0\.0\.1)(:\d+)?$/.test(origin));
 };
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   DollarSign,
@@ -39,11 +39,13 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  const fetchDashboard = async (showLoading = false) => {
+  const fetchDashboard = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
+    else setRefreshing(true);
     setError('');
     try {
       const response = await api.get('/reports/dashboard');
@@ -53,8 +55,9 @@ export default function DashboardPage() {
       setError(err.response?.data?.message || 'Erro ao carregar painel');
     } finally {
       if (showLoading) setLoading(false);
+      else setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchDashboard(true);
@@ -78,7 +81,7 @@ export default function DashboardPage() {
       socket.off('comanda-closed', handleUpdate);
       socket.off('dashboard:update', handleUpdate);
     };
-  }, []);
+  }, [fetchDashboard]);
 
   if (loading) return <LoadingSpinner />;
   if (error && !data) {
@@ -117,6 +120,8 @@ export default function DashboardPage() {
   }) || generateLast7DaysLabels();
 
   const chartValues = data?.faturamento7dias?.map(d => Number(d.total || d.valor || 0)) || [0, 0, 0, 0, 0, 0, 0];
+  const chartTextColor = document.documentElement.classList.contains('dark') ? '#94a3b8' : '#64748b';
+  const chartPointBorder = document.documentElement.classList.contains('dark') ? '#111827' : '#ffffff';
 
   const chartData = {
     labels: chartLabels,
@@ -129,7 +134,7 @@ export default function DashboardPage() {
         fill: true,
         tension: 0.4,
         pointBackgroundColor: '#10b981',
-        pointBorderColor: '#fff',
+        pointBorderColor: chartPointBorder,
         pointBorderWidth: 2,
         pointRadius: 4,
         pointHoverRadius: 6,
@@ -150,7 +155,7 @@ export default function DashboardPage() {
           usePointStyle: true,
           pointStyle: 'line',
           font: { size: 11, weight: 600 },
-          color: '#64748b',
+          color: chartTextColor,
           padding: 16,
         }
       },
@@ -170,7 +175,7 @@ export default function DashboardPage() {
         grid: { display: false },
         ticks: {
           font: { size: 11 },
-          color: '#94a3b8'
+          color: chartTextColor
         }
       },
       y: {
@@ -178,7 +183,7 @@ export default function DashboardPage() {
         grid: { color: 'rgba(148, 163, 184, 0.1)' },
         ticks: {
           font: { size: 11 },
-          color: '#94a3b8',
+          color: chartTextColor,
           callback: v => `R$ ${v >= 1000 ? (v/1000).toFixed(0) + '.' + '000' : v}`
         }
       }
@@ -194,21 +199,23 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3 self-start">
-          <button className="btn-secondary btn-sm">
+          <span className="dashboard-date-chip">
             <CalendarDays size={13} />
             <span>{dateStr}</span>
-          </button>
+          </span>
           <button
             type="button"
-            onClick={() => fetchDashboard(true)}
-            style={{ fontSize: 12, fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            onClick={() => fetchDashboard()}
+            className="dashboard-refresh-btn"
             title="Atualizar dados"
+            disabled={refreshing}
           >
-            <RefreshCw size={12} />
-            Atualizar
+            <RefreshCw className={refreshing ? 'animate-spin' : ''} size={13} />
+            {refreshing ? 'Atualizando' : 'Atualizar'}
           </button>
         </div>
       </div>
+      {error && data && <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700"><span>{error}. Os últimos dados continuam visíveis.</span><button type="button" className="font-extrabold underline" onClick={() => fetchDashboard()}>Tentar novamente</button></div>}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 stagger-children">
         <div className="metric-card accent-green animate-fade-slide-up">
           <div className="metric-header">
@@ -216,25 +223,25 @@ export default function DashboardPage() {
             <div className="metric-icon green"><DollarSign size={17} /></div>
           </div>
           <div className="metric-value">R$ {salesToday.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-          <div className="metric-change up">↑ 18% vs ontem</div>
+          <div className="metric-sub">Atualizado em {lastUpdated?.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) || '—'}</div>
         </div>
-        <div className="metric-card accent-blue animate-fade-slide-up cursor-pointer" onClick={() => navigate('/comanda')}>
+        <button type="button" className="metric-card accent-blue animate-fade-slide-up cursor-pointer text-left" onClick={() => navigate('/comanda')}>
           <div className="metric-header">
             <span className="metric-label">Comandas Abertas</span>
             <div className="metric-icon blue"><ClipboardList size={17} /></div>
           </div>
           <div className="metric-value">{openComandas}</div>
           <div className="metric-sub">Ver todas <ArrowRight size={10} /></div>
-        </div>
-        <div className="metric-card accent-orange animate-fade-slide-up cursor-pointer" onClick={() => navigate('/pedidos')}>
+        </button>
+        <button type="button" className="metric-card accent-orange animate-fade-slide-up cursor-pointer text-left" onClick={() => navigate('/pedidos')}>
           <div className="metric-header">
             <span className="metric-label">Cozinha / Bar</span>
             <div className="metric-icon orange"><ChefHat size={17} /></div>
           </div>
           <div className="metric-value">{pedidosAndamento}</div>
           <div className="metric-sub">Em preparo</div>
-        </div>
-        <div className="metric-card accent-purple animate-fade-slide-up cursor-pointer" onClick={() => navigate('/mesas')}>
+        </button>
+        <button type="button" className="metric-card accent-purple animate-fade-slide-up cursor-pointer text-left" onClick={() => navigate('/mesas')}>
           <div className="metric-header">
             <span className="metric-label">Mesas Ocupadas</span>
             <div className="metric-icon purple"><UtensilsCrossed size={17} /></div>
@@ -244,7 +251,7 @@ export default function DashboardPage() {
             <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 2 }}>/ {totalMesas}</span>
           </div>
           <div className="metric-sub">{occupancyPct}% ocupação</div>
-        </div>
+        </button>
         <div className="metric-card accent-red animate-fade-slide-up col-span-2 sm:col-span-1">
           <div className="metric-header">
             <span className="metric-label">Ticket Médio</span>
@@ -270,7 +277,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-right">
               <div className="pm-value">R$ {pixToday.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              <div className="pm-change text-emerald-600">+{pixPct}%</div>
+              <div className="pm-change text-emerald-600">{pixPct}% do recebido</div>
             </div>
           </div>
 
@@ -285,7 +292,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-right">
               <div className="pm-value">R$ {dinheiroToday.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              <div className="pm-change text-emerald-600">+{dinheiroPct}%</div>
+              <div className="pm-change text-emerald-600">{dinheiroPct}% do recebido</div>
             </div>
           </div>
 
@@ -300,7 +307,7 @@ export default function DashboardPage() {
             </div>
             <div className="text-right">
               <div className="pm-value">R$ {cartaoToday.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
-              <div className="pm-change text-emerald-600">+{cartaoPct}%</div>
+              <div className="pm-change text-emerald-600">{cartaoPct}% do recebido</div>
             </div>
           </div>
         </div>

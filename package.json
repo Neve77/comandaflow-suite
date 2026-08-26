@@ -23,6 +23,8 @@
     "test:package:client": "node scripts/tests/validate-packaged-app.js client",
     "test:package:manager": "node scripts/tests/validate-packaged-app.js manager",
     "test:package:online": "node scripts/tests/validate-online-packaged-flow.js",
+    "prepare:ios": "npm --prefix frontend run ios:sync",
+    "test:ios": "npm run prepare:ios && node scripts/tests/validate-ios-project.js",
     "prepare:desktop-runtime": "npm --prefix backend run prisma:generate && node scripts/build/prepare-desktop-runtime.js",
     "prepare:production-dependencies": "node scripts/build/prepare-production-dependencies.js",
     "build:app": "npm run build:client",

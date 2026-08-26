@@ -1,4 +1,5 @@
 const service = require('../services/manager-operations.service');
+const insights = require('../services/manager-insights.service');
 
 const monitoring = async (req, res, next) => {
   try { return res.json(await service.monitoringSnapshot()); } catch (error) { return next(error); }
@@ -28,4 +29,40 @@ const commentTicket = async (req, res, next) => {
   try { return res.status(201).json({ comment: await service.commentTicket(req.params.id, req.validated.body, req.user), message: 'Resposta adicionada.' }); } catch (error) { return next(error); }
 };
 
-module.exports = { commentTicket, createTicket, deactivateMessage, listMessages, listTickets, monitoring, notifications, sendMessage, updateTicket };
+const pulse = async (req, res, next) => {
+  try { return res.json(await insights.pulseSnapshot()); } catch (error) { return next(error); }
+};
+
+const pending = async (req, res, next) => {
+  try { return res.json(await insights.pendingSnapshot()); } catch (error) { return next(error); }
+};
+
+const subscriberProfile = async (req, res, next) => {
+  try { return res.json(await insights.subscriberProfile(req.params.id)); } catch (error) { return next(error); }
+};
+
+const setOnboardingStep = async (req, res, next) => {
+  try {
+    await insights.setOnboardingStep(req.params.id, req.params.step, req.validated, req.user);
+    return res.json({
+      onboarding: (await insights.subscriberProfile(req.params.id)).onboarding,
+      message: req.validated.completed ? 'Etapa concluída.' : 'Etapa reaberta.',
+    });
+  } catch (error) { return next(error); }
+};
+
+module.exports = {
+  commentTicket,
+  createTicket,
+  deactivateMessage,
+  listMessages,
+  listTickets,
+  monitoring,
+  notifications,
+  pending,
+  pulse,
+  sendMessage,
+  setOnboardingStep,
+  subscriberProfile,
+  updateTicket,
+};

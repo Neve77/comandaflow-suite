@@ -10,6 +10,15 @@ describe('Mobile waiter module', () => {
     await prisma.$disconnect();
   });
 
+  test('accepts requests from the native iOS webview origin', async () => {
+    const response = await request(app)
+      .get('/health')
+      .set('Origin', 'capacitor://localhost')
+      .expect(200);
+
+    expect(response.headers['access-control-allow-origin']).toBe('capacitor://localhost');
+  });
+
   test('waiter can login with PIN and access mobile dashboard', async () => {
     const login = await request(app)
       .post('/mobile/auth/login')

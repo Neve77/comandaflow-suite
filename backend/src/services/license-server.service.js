@@ -43,7 +43,7 @@ const authenticateInstallation = async ({ licenseKey, installationId }) => {
   return { subscription, verified };
 };
 
-const sync = async ({ licenseKey, installationId, deviceName, appVersion, platform, ip }) => {
+const sync = async ({ licenseKey, installationId, deviceName, appVersion, platform, onboarding, ip }) => {
   const verified = licenseService.verifyLicenseKey(licenseKey);
   const settings = await managerSettings.get();
   const now = new Date();
@@ -76,6 +76,14 @@ const sync = async ({ licenseKey, installationId, deviceName, appVersion, platfo
     },
     create: { subscriptionId: subscription.id, installationId, deviceName: deviceName || null, appVersion: appVersion || null, platform: platform || null, ip: ip || null },
     update: { deviceName: deviceName || null, appVersion: appVersion || null, platform: platform || null, ip: ip || null, active: true },
+  });
+
+  await managerOperations.recordOnboardingSignals(subscription.subscriberId, {
+    firstActivation: true,
+    adminCreated: onboarding?.adminCreated,
+    menuConfigured: onboarding?.menuConfigured,
+    firstOrder: onboarding?.firstOrder,
+    backupCreated: onboarding?.backupCreated,
   });
 
   const messages = await managerOperations.pendingMessages(subscription.subscriberId, installationId);

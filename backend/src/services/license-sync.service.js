@@ -1,5 +1,6 @@
 const os = require('os');
 const licenseService = require('./license.service');
+const prisma = require('../infra/prisma/client');
 
 const DEFAULT_INTERVAL_MS = 60 * 1000;
 const MIN_INTERVAL_MS = 15 * 1000;
@@ -51,6 +52,25 @@ const retryDelay = () => {
   return base + Math.round(base * 0.1 * Math.random());
 };
 
+const onboardingSnapshot = async () => {
+  try {
+    const [users, products, orders, backups] = await Promise.all([
+      prisma.user.count({ where: { active: true } }),
+      prisma.produto.count({ where: { ativo: true } }),
+      prisma.pedido.count(),
+      prisma.backupRecord.count(),
+    ]);
+    return {
+      adminCreated: users > 0,
+      menuConfigured: products > 0,
+      firstOrder: orders > 0,
+      backupCreated: backups > 0,
+    };
+  } catch {
+    return undefined;
+  }
+};
+
 const syncRequest = async () => {
   if (licenseService.isManagerMode()) return null;
   const record = licenseService.getActiveLicenseRecord();
@@ -64,6 +84,7 @@ const syncRequest = async () => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
+    const onboarding = await onboardingSnapshot();
     const response = await fetch(`${verified.serverUrl}/license/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -73,6 +94,7 @@ const syncRequest = async () => {
         deviceName: os.hostname(),
         appVersion: process.env.COMANDAFLOW_APP_VERSION || '0.0.0',
         platform: `${process.platform}-${process.arch}`,
+        onboarding,
       }),
       signal: controller.signal,
     });

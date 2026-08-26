@@ -73,6 +73,20 @@ html.dark {
   box-sizing: border-box;
 }
 
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid rgba(16,185,129,0.22);
+  outline-offset: 2px;
+}
+
 html,
 body,
 #root {

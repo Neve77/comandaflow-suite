@@ -23,7 +23,8 @@ const publicationSchema = z.object({
   mandatory: z.boolean().default(false),
   fileName: z.string().trim().min(5).max(255).refine((value) => value.toLowerCase().endsWith('.exe'), 'Selecione um arquivo .exe.'),
   size: z.number().int().min(2).max(500 * 1024 * 1024),
-  rollout: z.enum(['pilot', 'all']).default('all'),
+  rollout: z.enum(['pilot', 'percentage', 'all']).default('all'),
+  rolloutPercentage: z.number().int().min(1).max(100).optional().default(10),
   pilotSubscriberIds: z.array(z.string().uuid()).max(500).optional().default([]),
 }).superRefine((data, context) => {
   const expected = data.product === 'manager' ? `ComandaFlow-Gestor-Setup-${data.version}` : `ComandaFlow-Setup-${data.version}`;
@@ -44,7 +45,12 @@ router.get('/download/:id', managerOnly, validate(idSchema), updatesController.d
 router.get('/published', managerOnly, authenticate, authorize.permission('updates:read'), validate(publishedSchema), updatesController.published);
 router.post('/publish/start', managerOnly, authenticate, authorize('proprietario', 'administrador'), validate(publicationSchema), updatesController.startPublication);
 router.put('/publish/:token', managerOnly, authenticate, authorize('proprietario', 'administrador'), validate(uploadSchema), updatesController.uploadPublication);
-router.patch('/published/control', managerOnly, authenticate, authorize('proprietario', 'administrador'), validate(z.object({ action: z.enum(['pause', 'resume', 'withdraw', 'promote', 'pilot']), pilotSubscriberIds: z.array(z.string().uuid()).max(500).optional().default([]) })), updatesController.controlPublication);
+router.patch('/published/control', managerOnly, authenticate, authorize('proprietario', 'administrador'), validate(z.object({
+  action: z.enum(['pause', 'resume', 'withdraw', 'promote', 'pilot', 'percentage', 'rollback']),
+  pilotSubscriberIds: z.array(z.string().uuid()).max(500).optional().default([]),
+  rolloutPercentage: z.number().int().min(1).max(100).optional(),
+  targetId: z.string().uuid().optional(),
+})), updatesController.controlPublication);
 router.get('/manager/status', managerOnly, authenticate, authorize.permission('updates:read'), updatesController.managerStatus);
 router.post('/manager/install', managerOnly, authenticate, authorize('proprietario', 'administrador'), updatesController.installManager);
 

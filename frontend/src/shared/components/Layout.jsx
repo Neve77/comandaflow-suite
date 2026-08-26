@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   ChevronDown,
   Headphones,
+  MoreHorizontal,
 } from 'lucide-react';
 
 const restaurantLinks = [
@@ -44,6 +45,8 @@ const restaurantLinks = [
   { to: '/settings',   label: 'Configurações',     icon: Settings        },
   { to: '/support',    label: 'Suporte',            icon: Headphones      },
 ];
+
+const iosPrimaryPaths = ['/dashboard', '/comanda', '/mesas', '/pedidos'];
 
 export default function Layout() {
   const { logout, user, system } = useAuth();
@@ -66,7 +69,16 @@ export default function Layout() {
   const currentManagerItem = managerMode ? managerItemForPath(location.pathname) : null;
   const currentRestaurantItem = managerMode ? null : restaurantLinks.find((item) => location.pathname === item.to);
   const restaurantName = managerMode ? 'Painel do Proprietario' : configuredRestaurantName;
-  const headerTitle = currentManagerItem?.label || currentRestaurantItem?.label || restaurantName;
+  const headerTitle = nativeIOS && !managerMode
+    ? restaurantName
+    : currentManagerItem?.label || currentRestaurantItem?.label || restaurantName;
+  const headerSubtitle = nativeIOS && !managerMode
+    ? currentRestaurantItem?.label || 'Operação do restaurante'
+    : user?.name || 'Administrador';
+  const iosPrimaryLinks = restaurantLinks.filter((item) => iosPrimaryPaths.includes(item.to));
+  const iosMoreActive = nativeIOS
+    && !managerMode
+    && !iosPrimaryPaths.includes(location.pathname);
   const userInitials   = user?.name
     ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : 'CF';
@@ -308,7 +320,7 @@ export default function Layout() {
                 <h1>{headerTitle}</h1>
                 <span className="header-badge">ORQIUM</span>
               </div>
-              <p>{user?.name || 'Administrador'}</p>
+              <p>{headerSubtitle}</p>
             </div>
           </div>
 
@@ -359,6 +371,33 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+      {nativeIOS && !managerMode && (
+        <nav className="ios-tab-bar" aria-label="Navegação rápida">
+          <div className="ios-tab-bar-inner">
+            {iosPrimaryLinks.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) => `ios-tab-item ${isActive ? 'ios-tab-item-active' : ''}`}
+              >
+                <Icon size={21} strokeWidth={2.1} />
+                <span>{label === 'Cozinha / Pedidos' ? 'Pedidos' : label}</span>
+              </NavLink>
+            ))}
+            <button
+              type="button"
+              className={`ios-tab-item ${iosMoreActive || mobileMenuOpen ? 'ios-tab-item-active' : ''}`}
+              aria-label="Abrir todos os recursos"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="main-navigation"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <MoreHorizontal size={22} strokeWidth={2.2} />
+              <span>Mais</span>
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

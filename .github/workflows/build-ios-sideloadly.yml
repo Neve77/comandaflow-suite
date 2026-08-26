@@ -68,7 +68,7 @@ jobs:
           version="$(node -p "require('./package.json').version")"
           app_path="frontend/ios/build/Build/Products/Release-iphoneos/ComandaFlow.app"
           output_dir="dist/ios"
-          ipa_name="ComandaFlow-Restaurante-${version}-Local-WiFi.ipa"
+          ipa_name="ComandaFlow-Restaurante-${version}-iOS-Pro-Local.ipa"
           test -d "$app_path"
           executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app_path/Info.plist")"
           bundle_id="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Info.plist")"

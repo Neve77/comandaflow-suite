@@ -329,6 +329,52 @@ html.dark .login-form-heading > span { color: #6ee7b7; }
   line-height: 1.6;
 }
 
+.login-operation-flow {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  margin-top: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.login-operation-flow::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  right: 11%;
+  left: 11%;
+  height: 2px;
+  background: var(--border-strong);
+}
+
+.login-operation-flow span {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 9.5px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.login-operation-flow i {
+  width: 18px;
+  height: 18px;
+  border: 4px solid var(--surface);
+  border-radius: 50%;
+  background: var(--border-strong);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  animation: login-flow-pulse 4.8s ease-in-out infinite;
+}
+
+.login-operation-flow span:nth-child(2) i { animation-delay: 1.2s; }
+.login-operation-flow span:nth-child(3) i { animation-delay: 2.4s; }
+.login-operation-flow span:nth-child(4) i { animation-delay: 3.6s; }
+
 .login-form {
   display: grid;
   gap: 15px;
@@ -505,6 +551,11 @@ html.dark .login-feedback-info { color: #93c5fd; }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes login-flow-pulse {
+  0%, 18%, 100% { background: var(--border-strong); box-shadow: 0 0 0 1px var(--border-strong); transform: scale(1); }
+  7% { background: var(--emerald); box-shadow: 0 0 0 5px rgba(16,185,129,0.12); transform: scale(1.08); }
+}
+
 @media (max-width: 900px) {
   .login-page { padding: 22px; }
   .login-shell { width: min(500px, 100%); min-height: 0; grid-template-columns: 1fr; }
@@ -522,7 +573,9 @@ html.dark .login-feedback-info { color: #93c5fd; }
   .login-form-side { justify-content: flex-start; padding: 25px 20px 30px; }
   .login-mobile-brand { margin-bottom: 54px; padding-right: 46px; }
   .login-form-heading h2 { font-size: 27px; }
-  .login-form { margin-top: 25px; }
+  .login-operation-flow { margin-top: 23px; }
+  .login-operation-flow span { font-size: 10px; }
+  .login-form { margin-top: 22px; }
 }
 
 @media (max-height: 720px) and (min-width: 901px) {
@@ -539,4 +592,5 @@ html.dark .login-feedback-info { color: #93c5fd; }
   .login-shell { animation: none; }
   .login-theme-toggle,
   .login-submit { transition: none; }
+  .login-operation-flow i { animation: none; background: var(--emerald); }
 }

@@ -215,6 +215,11 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+      <button type="button" className="dashboard-new-service" onClick={() => navigate('/atendimento')}>
+        <span><Plus size={24} /></span>
+        <span><strong>Cliente chegou? Iniciar atendimento</strong><small>Identificar cliente → escolher mesa → adicionar itens</small></span>
+        <ArrowRight size={22} />
+      </button>
       {error && data && <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700"><span>{error}. Os últimos dados continuam visíveis.</span><button type="button" className="font-extrabold underline" onClick={() => fetchDashboard()}>Tentar novamente</button></div>}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 stagger-children">
         <div className="metric-card accent-green animate-fade-slide-up">
@@ -435,9 +440,9 @@ export default function DashboardPage() {
       <div className="quick-actions-bar">
         <span className="qa-title">Ações rápidas</span>
         <span className="qa-divider"></span>
-        <button className="quick-action-btn" onClick={() => navigate('/comanda')}>
+        <button className="quick-action-btn" onClick={() => navigate('/atendimento')}>
           <Plus size={16} />
-          <span>Nova Comanda</span>
+          <span>Novo Atendimento</span>
         </button>
         <button className="quick-action-btn" onClick={() => navigate('/mesas')}>
           <UtensilsCrossed size={16} />

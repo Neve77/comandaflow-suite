@@ -25,6 +25,8 @@ import {
   Moon,
   Sun,
   Users,
+  UserRoundPlus,
+  Smartphone,
   Wifi,
   WifiOff,
   AlertTriangle,
@@ -34,6 +36,7 @@ import {
 } from 'lucide-react';
 
 const restaurantLinks = [
+  { to: '/atendimento', label: 'Novo atendimento', icon: UserRoundPlus   },
   { to: '/dashboard',  label: 'Início',           icon: LayoutDashboard },
   { to: '/comanda',    label: 'Comandas',          icon: ClipboardList   },
   { to: '/mesas',      label: 'Mesas',             icon: UtensilsCrossed },
@@ -42,11 +45,12 @@ const restaurantLinks = [
   { to: '/finance',    label: 'Caixa',             icon: DollarSign      },
   { to: '/reports',    label: 'Relatórios',        icon: BarChart3       },
   { to: '/clients',    label: 'Clientes',          icon: Users           },
+  { to: '/devices',    label: 'Conectar celular',  icon: Smartphone      },
   { to: '/settings',   label: 'Configurações',     icon: Settings        },
   { to: '/support',    label: 'Suporte',            icon: Headphones      },
 ];
 
-const iosPrimaryPaths = ['/dashboard', '/comanda', '/mesas', '/pedidos'];
+const iosPrimaryPaths = ['/atendimento', '/mesas', '/comanda', '/pedidos'];
 
 export default function Layout() {
   const { logout, user, system } = useAuth();
@@ -65,7 +69,9 @@ export default function Layout() {
   const managerMode = system.subscriptionManager;
   const nativeIOS = isNativeIOS();
   const managerLinks = managerNavigation.filter((item) => canAccessManagerItem(item, user));
-  const links = managerMode ? managerLinks : restaurantLinks;
+  const links = managerMode
+    ? managerLinks
+    : restaurantLinks.filter((item) => !(nativeIOS && item.to === '/devices'));
   const currentManagerItem = managerMode ? managerItemForPath(location.pathname) : null;
   const currentRestaurantItem = managerMode ? null : restaurantLinks.find((item) => location.pathname === item.to);
   const restaurantName = managerMode ? 'Painel do Proprietario' : configuredRestaurantName;
@@ -241,7 +247,7 @@ export default function Layout() {
             </div>
           )) : <>
             <p className="sidebar-section-label">Principal</p>
-            {links.slice(0, 6).map(({ to, label, icon: Icon }) => (
+            {links.slice(0, 7).map(({ to, label, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -254,7 +260,7 @@ export default function Layout() {
             ))}
           </>}
           {!managerMode && <p className="sidebar-section-label" style={{ marginTop: 8 }}>Gerencial</p>}
-          {!managerMode && links.slice(6).map(({ to, label, icon: Icon }) => (
+          {!managerMode && links.slice(7).map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}

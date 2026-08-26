@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Trash2,
@@ -15,22 +15,22 @@ import {
   Phone,
   MessageSquare,
   Users2,
+  Search,
 } from 'lucide-react';
 import { useComanda } from './useComanda';
 import { useProducts } from '../products/useProducts';
 import api from '../../shared/services/api';
-import ClientSelector from '../../shared/components/ClientSelector';
 import ComandaModals from './components/ComandaModals';
 import { formatCpf, formatPhone, stripNonDigits } from '../../shared/utils/formatters';
 
 export default function ComandaPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     comanda,
     setComanda,
     openComandas,
     loading,
-    openComanda,
     closeComanda,
     addPedido,
     cancelPedido,
@@ -42,11 +42,10 @@ export default function ComandaPage() {
   const availableProducts = products.filter((p) => p.ativo && p.estoque > 0);
 
   const [mesas, setMesas] = useState([]);
-  const [selectedMesaId, setSelectedMesaId] = useState('');
-  const [clientData, setClientData] = useState({ nome: '', cpf: '', telefone: '' });
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState('success');
   const [selectedProductId, setSelectedProductId] = useState('');
+  const [productSearch, setProductSearch] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [observacao, setObservacao] = useState('');
   const [showCloseModal, setShowCloseModal] = useState(false);
@@ -66,6 +65,15 @@ export default function ComandaPage() {
   const [whatsappPhone, setWhatsappPhone] = useState('');
   const [includePixInMessage, setIncludePixInMessage] = useState(true);
   const [copied, setCopied] = useState(false);
+  const orderEntryRef = useRef(null);
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return availableProducts;
+    return availableProducts.filter((product) => (
+      product.nome?.toLowerCase().includes(query)
+      || product.categoria?.toLowerCase().includes(query)
+    ));
+  }, [availableProducts, productSearch]);
   useEffect(() => {
     const fetchMesas = async () => {
       try {
@@ -80,38 +88,20 @@ export default function ComandaPage() {
   useEffect(() => {
     if (location.state?.comandaId) {
       loadComanda(location.state.comandaId);
-    } else if (location.state?.mesaId) {
-      setSelectedMesaId(location.state.mesaId);
     }
   }, [location.state, loadComanda]);
+  useEffect(() => {
+    if (!comanda?.id || !location.state?.focusProducts) return undefined;
+    const timeout = window.setTimeout(() => {
+      orderEntryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 180);
+    return () => window.clearTimeout(timeout);
+  }, [comanda?.id, location.state?.focusProducts]);
 
   const showFeedback = (text, type = 'success') => {
     setMessage(text);
     setMessageType(type);
     setTimeout(() => setMessage(''), 4000);
-  };
-
-  const handleOpenComanda = async (e) => {
-    e?.preventDefault();
-    if (!selectedMesaId) {
-      showFeedback('Selecione uma mesa para abrir a comanda.', 'error');
-      return;
-    }
-
-    try {
-      const selectedMesa = mesas.find((m) => m.id === selectedMesaId);
-      await openComanda({
-        mesaId: selectedMesaId,
-        mesaNumero: selectedMesa?.numero,
-        clienteNome: clientData.nome.trim(),
-        clienteCpf: stripNonDigits(clientData.cpf),
-        clienteTelefone: stripNonDigits(clientData.telefone)
-      });
-      setClientData({ nome: '', cpf: '', telefone: '' });
-      showFeedback(`Comanda da Mesa ${selectedMesa?.numero || ''} aberta com sucesso!`);
-    } catch (err) {
-      showFeedback(err.response?.data?.message || err.message || 'Erro ao abrir comanda.', 'error');
-    }
   };
 
   const handleAddPedido = async (e) => {
@@ -134,6 +124,7 @@ export default function ComandaPage() {
         observacao: observacao.trim()
       });
       setSelectedProductId('');
+      setProductSearch('');
       setQuantidade(1);
       setObservacao('');
       showFeedback(`${quantidade}x ${prod.nome} adicionado(s)!`);
@@ -388,68 +379,42 @@ ${customFooter} 😊🍽️`;
                   </button>
                 </div>
               </div>
-              <form onSubmit={handleAddPedido} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Adicionar Item ao Pedido
-                </h3>
-
-                <div className="mt-3 grid gap-3 sm:grid-cols-12">
-                  <div className="sm:col-span-6">
-                    <select
-                      value={selectedProductId}
-                      onChange={(e) => setSelectedProductId(e.target.value)}
-                      className="input-field"
-                      required
-                    >
-                      <option value="">Selecione um produto do cardápio...</option>
-                      {availableProducts.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nome} — R$ {Number(p.preco).toFixed(2)} ({p.categoria})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-3 flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setQuantidade((q) => Math.max(1, q - 1))}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white font-bold text-slate-700 hover:bg-slate-100"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={quantidade}
-                      onChange={(e) => setQuantidade(Math.max(1, Number(e.target.value) || 1))}
-                      className="input-field text-center font-bold h-10 py-1"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setQuantidade((q) => q + 1)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white font-bold text-slate-700 hover:bg-slate-100"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-                  <div className="sm:col-span-3">
-                    <button
-                      type="submit"
-                      disabled={loading || !selectedProductId}
-                      className="btn-primary w-full h-10 text-xs font-bold"
-                    >
-                      <span>+ Adicionar</span>
-                    </button>
-                  </div>
+              <form ref={orderEntryRef} id="adicionar-itens" onSubmit={handleAddPedido} className="order-entry-card">
+                <div className="order-entry-heading">
+                  <div><span>Etapa final do atendimento</span><h3>Adicionar itens à Mesa {comanda.mesa?.numero}</h3></div>
+                  <Plus size={23} className="text-emerald-600" />
                 </div>
-                <div className="mt-2.5">
-                  <input
-                    type="text"
-                    value={observacao}
-                    onChange={(e) => setObservacao(e.target.value)}
-                    placeholder="Observação da cozinha (ex: sem cebola, ponto da carne, gelo e limão)"
-                    className="input-field text-xs"
-                  />
+                <label className="order-product-search">
+                  <Search size={20} />
+                  <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Buscar bebida, prato ou produto..." />
+                </label>
+                <div className="order-product-grid">
+                  {filteredProducts.length ? filteredProducts.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className={`order-product-card ${selectedProductId === product.id ? 'selected' : ''}`}
+                      onClick={() => setSelectedProductId(product.id)}
+                    >
+                      <strong>{product.nome}</strong>
+                      <span>{product.categoria || 'Produto'} <b>R$ {Number(product.preco).toFixed(2)}</b></span>
+                    </button>
+                  )) : <div className="service-empty" style={{ gridColumn: '1 / -1' }}>Nenhum produto encontrado.</div>}
+                </div>
+                <div className="order-controls">
+                  <div>
+                    <label className="order-control-label">Quantidade</label>
+                    <div className="order-quantity">
+                      <button type="button" aria-label="Diminuir quantidade" onClick={() => setQuantidade((q) => Math.max(1, q - 1))}><Minus size={18} /></button>
+                      <input aria-label="Quantidade" type="number" min="1" value={quantidade} onChange={(event) => setQuantidade(Math.max(1, Number(event.target.value) || 1))} />
+                      <button type="button" aria-label="Aumentar quantidade" onClick={() => setQuantidade((q) => q + 1)}><Plus size={18} /></button>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="order-control-label" htmlFor="order-note">Observação (opcional)</label>
+                    <input id="order-note" className="order-note" value={observacao} onChange={(event) => setObservacao(event.target.value)} placeholder="Ex.: sem cebola" />
+                  </div>
+                  <button type="submit" disabled={loading || !selectedProductId} className="order-add-button"><Plus size={19} /> Adicionar item</button>
                 </div>
               </form>
               <div>
@@ -566,56 +531,18 @@ ${customFooter} 😊🍽️`;
               </div>
             </div>
           ) : (
-            <div className="panel p-6">
-              <h2 className="text-lg font-bold text-slate-950">Abrir Nova Comanda</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Selecione uma mesa disponível e opcionalmente vincule os dados do cliente para agilizar o atendimento.
+            <div className="panel p-8 text-center min-h-[330px] flex flex-col items-center justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <User size={29} />
+              </div>
+              <h2 className="mt-5 text-2xl font-black text-slate-950">Comece pelo cliente</h2>
+              <p className="mt-2 max-w-md text-sm leading-6 text-slate-500">
+                Para evitar erros, o novo fluxo identifica o cliente, escolhe a mesa e depois libera o lançamento de itens.
               </p>
-
-              <form onSubmit={handleOpenComanda} className="mt-5 space-y-4 max-w-lg">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Mesa *
-                  </label>
-                  <select
-                    value={selectedMesaId}
-                    onChange={(e) => setSelectedMesaId(e.target.value)}
-                    className="input-field mt-1"
-                    required
-                  >
-                    <option value="">Escolha a mesa...</option>
-                    {mesas.map((m) => {
-                      const isOccupied = openComandas.some((c) => c.mesaId === m.id);
-                      return (
-                        <option key={m.id} value={m.id} disabled={isOccupied}>
-                          Mesa {m.numero} {isOccupied ? '(Ocupada)' : '(Livre)'}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                    Cliente (Nome, Telefone ou CPF)
-                  </label>
-                  <ClientSelector
-                    clientData={clientData}
-                    onChange={setClientData}
-                  />
-                  <p className="mt-2 text-[11px] text-slate-400">
-                    💡 Digite para buscar clientes já cadastrados ou clique em <strong>+ Novo</strong> para cadastrar rapidamente.
-                  </p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || !selectedMesaId}
-                  className="btn-primary w-full py-3 text-sm font-bold bg-emerald-600 hover:bg-emerald-700"
-                >
-                  <span>Abrir Comanda</span>
-                </button>
-              </form>
+              <button type="button" onClick={() => navigate('/atendimento')} className="service-primary-action mt-5">
+                Iniciar novo atendimento <Plus size={20} />
+              </button>
+              {openComandas.length > 0 && <p className="mt-4 text-xs font-semibold text-slate-500">Ou escolha uma comanda aberta ao lado.</p>}
             </div>
           )}
         </div>

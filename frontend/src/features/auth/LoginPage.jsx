@@ -20,6 +20,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../app/providers/AuthContext';
 import api from '../../shared/services/api';
+import { isNativeIOS } from '../../shared/config/config';
 
 const features = [
   { title: 'Operação em tempo real', description: 'Mesas, comandas e pedidos sincronizados.', icon: Smartphone, tone: 'emerald' },
@@ -103,7 +104,7 @@ export default function LoginPage() {
     try {
       if (setupRequired) await api.post('/auth/setup', { name: name.trim(), email: normalizedEmail, password });
       await login(normalizedEmail, password, twoFactorCode.trim());
-      navigate(system.subscriptionManager ? '/subscriptions' : '/dashboard');
+      navigate(system.subscriptionManager ? '/subscriptions' : isNativeIOS() ? '/atendimento' : '/dashboard');
     } catch (requestError) {
       if (requestError.response?.data?.code === 'TWO_FACTOR_REQUIRED') {
         setTwoFactorRequired(true);
@@ -167,6 +168,14 @@ export default function LoginPage() {
             <h2>{mode.title}</h2>
             <p>{setupLoading ? 'Verificando a configuração do aplicativo…' : mode.description}</p>
           </div>
+
+          {!managerMode && !setupRequired && !twoFactorRequired && (
+            <div className="login-operation-flow" aria-label="Fluxo do atendimento: cliente, mesa, pedido e pagamento">
+              {['Cliente', 'Mesa', 'Pedido', 'Pagamento'].map((label) => (
+                <span key={label}><i />{label}</span>
+              ))}
+            </div>
+          )}
 
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             {setupRequired && (

@@ -43,10 +43,13 @@ describe('Comanda Flow modules', () => {
 
     expect(eventRes.body.event.id).toBeTruthy();
 
-    await request(app)
+    const devices = await request(app)
       .get('/devices/status')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
+
+    expect(devices.body.restaurantUrl).toMatch(/^http:\/\/.+:\d+$/);
+    expect(devices.body.restaurantLinks.every((link) => !link.endsWith('/mobile'))).toBe(true);
 
     const pairing = await request(app)
       .post('/devices/pairing')

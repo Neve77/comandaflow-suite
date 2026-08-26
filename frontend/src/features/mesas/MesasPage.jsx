@@ -16,8 +16,7 @@ import {
 } from 'lucide-react';
 import api, { socket } from '../../shared/services/api';
 import LoadingSpinner from '../../shared/components/LoadingSpinner';
-import ClientSelector from '../../shared/components/ClientSelector';
-import { formatPhone, formatCpf, stripNonDigits } from '../../shared/utils/formatters';
+import { formatPhone, formatCpf } from '../../shared/utils/formatters';
 
 export default function MesasPage() {
   const navigate = useNavigate();
@@ -28,9 +27,6 @@ export default function MesasPage() {
   const [newNumero, setNewNumero] = useState('');
   const [newCapacidade, setNewCapacidade] = useState('4');
   const [saving, setSaving] = useState(false);
-  const [openMesaModalData, setOpenMesaModalData] = useState(null);
-  const [clientData, setClientData] = useState({ nome: '', cpf: '', telefone: '' });
-  const [openingMesa, setOpeningMesa] = useState(false);
   const [transferModalData, setTransferModalData] = useState(null); // { comandaId, currentMesaNumero }
   const [targetMesaId, setTargetMesaId] = useState('');
   const [historyModalMesa, setHistoryModalMesa] = useState(null);
@@ -97,42 +93,7 @@ export default function MesasPage() {
     if (comandaAberta) {
       navigate('/comanda', { state: { comandaId: comandaAberta.id, mesaId: mesa.id, mesaNumero: mesa.numero } });
     } else {
-      setOpenMesaModalData(mesa);
-      setClientData({ nome: '', cpf: '', telefone: '' });
-    }
-  };
-
-  const handleConfirmOpenMesa = async (e) => {
-    e?.preventDefault();
-    if (!openMesaModalData) return;
-
-    setOpeningMesa(true);
-    setError('');
-
-    try {
-      const res = await api.post('/comandas/open', {
-        mesaId: openMesaModalData.id,
-        mesaNumero: openMesaModalData.numero,
-        clienteNome: clientData.nome.trim(),
-        clienteCpf: stripNonDigits(clientData.cpf),
-        clienteTelefone: stripNonDigits(clientData.telefone)
-      });
-
-      const novaComanda = res.data.comanda;
-      setOpenMesaModalData(null);
-      setClientData({ nome: '', cpf: '', telefone: '' });
-
-      navigate('/comanda', {
-        state: {
-          comandaId: novaComanda.id,
-          mesaId: openMesaModalData.id,
-          mesaNumero: openMesaModalData.numero
-        }
-      });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Erro ao abrir mesa.');
-    } finally {
-      setOpeningMesa(false);
+      navigate('/atendimento', { state: { preselectedMesaId: mesa.id } });
     }
   };
 
@@ -532,68 +493,6 @@ export default function MesasPage() {
                 Fechar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-      {openMesaModalData && (
-        <div className="modal-overlay">
-          <div className="modal-content max-w-lg">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white font-black text-sm">
-                  {openMesaModalData.numero}
-                </div>
-                <div>
-                  <h2 className="text-base font-bold text-slate-950">
-                    Abrir Mesa {openMesaModalData.numero}
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Capacidade: {openMesaModalData.capacidade} lugares
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setOpenMesaModalData(null)}
-                className="btn-icon"
-                disabled={openingMesa}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleConfirmOpenMesa} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">
-                  Identificar Cliente (Opcional)
-                </label>
-                <ClientSelector
-                  clientData={clientData}
-                  onChange={setClientData}
-                  disabled={openingMesa}
-                />
-                <p className="mt-2 text-[11px] text-slate-400">
-                  💡 Busque por CPF, telefone ou nome para carregar o cliente já cadastrado ou clique em <strong>+ Novo</strong> para cadastrar na hora.
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setOpenMesaModalData(null)}
-                  className="btn-secondary btn-sm"
-                  disabled={openingMesa}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary btn-sm bg-emerald-600 hover:bg-emerald-700 font-bold"
-                  disabled={openingMesa}
-                >
-                  {openingMesa ? 'Abrindo Mesa...' : 'Confirmar e Abrir Mesa'}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

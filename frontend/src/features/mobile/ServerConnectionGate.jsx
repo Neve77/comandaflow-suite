@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
@@ -48,11 +48,27 @@ export default function ServerConnectionGate({ children }) {
   const nativeIOS = isNativeIOS();
   const configuredServer = useMemo(() => getConfiguredMobileServerUrl(), []);
   const [serverUrl, setServerUrl] = useState(configuredServer);
-  const [checking, setChecking] = useState(false);
+  const [checking, setChecking] = useState(Boolean(nativeIOS && configuredServer));
+  const [connectionReady, setConnectionReady] = useState(false);
   const [error, setError] = useState('');
   const [connectedName, setConnectedName] = useState('');
 
-  if (!nativeIOS || configuredServer) return children;
+  useEffect(() => {
+    if (!nativeIOS || !configuredServer) return undefined;
+    let active = true;
+    validateRestaurantServer(configuredServer)
+      .then(() => { if (active) setConnectionReady(true); })
+      .catch((requestError) => {
+        if (!active) return;
+        setError(requestError.name === 'AbortError'
+          ? 'O Restaurante não respondeu. Confira o Wi-Fi e mantenha o sistema aberto no computador.'
+          : requestError.message || 'Não foi possível reconectar ao Restaurante.');
+      })
+      .finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
+  }, [configuredServer, nativeIOS]);
+
+  if (!nativeIOS || connectionReady) return children;
 
   const connect = async (event) => {
     event.preventDefault();
@@ -85,10 +101,10 @@ export default function ServerConnectionGate({ children }) {
         </div>
 
         <div className="ios-setup-icon"><Smartphone size={30} /></div>
-        <p className="ios-setup-eyebrow">Primeiro acesso</p>
+        <p className="ios-setup-eyebrow">Conexão direta com o Restaurante</p>
         <h1>Conecte este iPhone ao restaurante.</h1>
         <p className="ios-setup-description">
-          Sem dominio, use o IP local do computador. O iPhone e o ComandaFlow precisam estar conectados a mesma rede Wi-Fi.
+          Use o IP local do computador onde está aberto o ComandaFlow Restaurante. Não use o endereço do Gestor.
         </p>
 
         <form onSubmit={connect} className="ios-setup-form">

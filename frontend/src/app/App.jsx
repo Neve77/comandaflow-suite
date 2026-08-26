@@ -5,6 +5,7 @@ import api from '../shared/services/api';
 import LoadingSpinner from '../shared/components/LoadingSpinner';
 import ErrorBoundary from '../shared/components/ErrorBoundary';
 import ServerConnectionGate from '../features/mobile/ServerConnectionGate';
+import { isNativeIOS } from '../shared/config/config';
 
 const Layout = lazy(() => import('../shared/components/Layout'));
 const LoginPage = lazy(() => import('../features/auth/LoginPage'));
@@ -26,6 +27,7 @@ const IntelligencePage = lazy(() => import('../features/intelligence/Intelligenc
 const DevicesPage = lazy(() => import('../features/devices/DevicesPage'));
 const BackupPage = lazy(() => import('../features/backup/BackupPage'));
 const RestaurantSupportPage = lazy(() => import('../features/support/RestaurantSupportPage'));
+const AtendimentoPage = lazy(() => import('../features/atendimento/AtendimentoPage'));
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading, systemLoading } = useAuth();
@@ -88,7 +90,12 @@ function ModeRoute({ manager, children }) {
 
 function HomeRedirect() {
   const { system } = useAuth();
-  return <Navigate to={system.subscriptionManager ? '/subscriptions' : '/dashboard'} replace />;
+  const destination = system.subscriptionManager
+    ? '/subscriptions'
+    : isNativeIOS()
+      ? '/atendimento'
+      : '/dashboard';
+  return <Navigate to={destination} replace />;
 }
 
 function FullScreenLoading() {
@@ -112,6 +119,7 @@ export default function App() {
                   <Route path="subscriptions" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
                   <Route path="subscriptions/:section" element={<ManagerOnly><SubscriptionsPage /></ManagerOnly>} />
                   <Route path="dashboard" element={<RestaurantOnly><DashboardPage /></RestaurantOnly>} />
+                  <Route path="atendimento" element={<RestaurantOnly><AtendimentoPage /></RestaurantOnly>} />
                   <Route path="comanda" element={<RestaurantOnly><ComandaPage /></RestaurantOnly>} />
                   <Route path="mesas" element={<RestaurantOnly><MesasPage /></RestaurantOnly>} />
                   <Route path="products" element={<RestaurantOnly><ProductsPage /></RestaurantOnly>} />

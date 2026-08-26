@@ -208,11 +208,7 @@ function getBackendCapabilities(port) {
   });
 }
 
-// O Gestor e o Restaurante usam o mesmo pacote-base do Electron. No Windows,
-// isso faz o bloqueio nativo tratar os dois produtos como a mesma instancia.
-// O Restaurante reutiliza com seguranca o backend da porta 3002 quando aberto
-// novamente; por isso ele nao participa do bloqueio mantido pelo Gestor.
-const allowMultipleInstances = !managerMode || process.env.COMANDAFLOW_ALLOW_MULTIPLE_INSTANCES === 'true';
+const allowMultipleInstances = process.env.COMANDAFLOW_ALLOW_MULTIPLE_INSTANCES === 'true';
 const gotLock = allowMultipleInstances || (app.requestSingleInstanceLock && app.requestSingleInstanceLock());
 if (!gotLock) {
   try { writeLog('[app]', 'Outra instância detectada — saindo.'); } catch (e) {}

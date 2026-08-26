@@ -9,6 +9,10 @@ const managerMode = process.env.COMANDAFLOW_MANAGER_MODE === 'true';
 const productName = managerMode ? 'ComandaFlow Gestor' : 'ComandaFlow';
 const dataFolderName = managerMode ? 'ComandaFlowGestor' : 'ComandaFlow';
 
+// O nome interno tambem identifica o bloqueio de instancia unica no Windows.
+// Sem esta separacao, abrir o Gestor fazia o Restaurante encerrar imediatamente.
+app.setName(productName);
+
 // Mantém logs, banco e armazenamento do Chromium em uma pasta gravável do usuário.
 const applicationDataRoot = process.env.COMANDAFLOW_DATA_ROOT || app.getPath('appData');
 const userDataPath = path.join(applicationDataRoot, dataFolderName);

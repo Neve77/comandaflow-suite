@@ -42,7 +42,6 @@ const startApp = (executable, name, port) => {
       PORT: String(port),
       APPDATA: dataRoot,
       COMANDAFLOW_DATA_ROOT: dataRoot,
-      COMANDAFLOW_ALLOW_MULTIPLE_INSTANCES: 'true',
       COMANDAFLOW_ALLOW_LOCAL_SERVER: 'true',
     },
     windowsHide: true,

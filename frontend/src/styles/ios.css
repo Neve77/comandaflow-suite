@@ -64,7 +64,7 @@ html.cf-native-ios,
 html.cf-native-ios body,
 html.cf-native-ios #root { height: 100%; }
 
-html.cf-native-ios { --ios-tab-bar-height: 70px; }
+html.cf-native-ios { --ios-tab-bar-height: 76px; }
 
 html.cf-native-ios body { overscroll-behavior: none; -webkit-touch-callout: none; }
 html.cf-native-ios button,
@@ -102,8 +102,8 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
 
   html.cf-native-ios .top-header-left { gap: 0; }
   html.cf-native-ios .top-header-left h1 {
-    max-width: 48vw;
-    font-size: 15px;
+    max-width: 56vw;
+    font-size: 17px;
     font-weight: 850;
     letter-spacing: -0.025em;
   }
@@ -113,13 +113,15 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
     margin-top: 2px;
     overflow: hidden;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 650;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   html.cf-native-ios .top-header-left .header-badge,
   html.cf-native-ios .header-status-indicator { display: none; }
+
+  html.cf-native-ios .header-theme-toggle { display: none; }
 
   html.cf-native-ios .top-header-right { gap: 3px; }
   html.cf-native-ios .header-icon-btn {
@@ -138,7 +140,7 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
   }
 
   html.cf-native-ios .content-area {
-    padding: 14px 14px calc(var(--ios-tab-bar-height) + env(safe-area-inset-bottom) + 18px);
+    padding: 12px 12px calc(var(--ios-tab-bar-height) + env(safe-area-inset-bottom) + 16px);
     scroll-padding-bottom: calc(var(--ios-tab-bar-height) + env(safe-area-inset-bottom) + 18px);
     animation-duration: 220ms;
   }
@@ -306,13 +308,13 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
   }
   html.cf-native-ios .sidebar-section-label { grid-column: 1 / -1; padding: 10px 4px 2px; }
   html.cf-native-ios .sidebar-link {
-    min-height: 48px;
+    min-height: 54px;
     gap: 9px;
     border: 1px solid rgba(148, 163, 184, 0.1);
     border-radius: 13px;
     padding: 10px 11px;
     background: rgba(255, 255, 255, 0.045);
-    font-size: 12px;
+    font-size: 14px;
   }
   html.cf-native-ios .sidebar-link:hover { transform: none; }
   html.cf-native-ios .sidebar-footer { padding: 12px 14px max(10px, env(safe-area-inset-bottom)); }
@@ -350,7 +352,7 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
     position: relative;
     display: flex;
     min-width: 0;
-    min-height: 55px;
+    min-height: 61px;
     align-items: center;
     justify-content: center;
     flex-direction: column;
@@ -365,7 +367,7 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
   html.cf-native-ios .ios-tab-item span {
     max-width: 100%;
     overflow: hidden;
-    font-size: 9.5px;
+    font-size: 11px;
     font-weight: 750;
     letter-spacing: -0.01em;
     text-overflow: ellipsis;
@@ -422,6 +424,134 @@ html.cf-native-ios .login-page { min-height: 100dvh; padding-top: env(safe-area-
   html.cf-native-ios .login-form-heading h2 { font-size: 28px; }
   html.cf-native-ios .login-field input { min-height: 50px; border-radius: 13px; font-size: 16px; }
   html.cf-native-ios .login-submit { min-height: 52px; border-radius: 14px; font-size: 14px; }
+
+  /* Atendimento: uma pergunta por vez, com escolhas grandes e compactas. */
+  html.cf-native-ios .service-flow-hero { display: none; }
+  html.cf-native-ios .service-flow-page { width: 100%; margin: 0; }
+  html.cf-native-ios .service-steps { margin: 0 2px 12px; }
+  html.cf-native-ios .service-steps li { gap: 6px; }
+  html.cf-native-ios .service-steps li:not(:last-child)::after { margin: 0 7px; }
+  html.cf-native-ios .service-steps li > span {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+    border-radius: 11px;
+  }
+  html.cf-native-ios .service-steps li > span svg { width: 17px; height: 17px; }
+  html.cf-native-ios .service-steps li strong { font-size: 11px; }
+  html.cf-native-ios .service-flow-card {
+    overflow: visible;
+    border-radius: 20px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  }
+  html.cf-native-ios .service-step-content { padding: 18px 15px; }
+  html.cf-native-ios .service-question > span { font-size: 11px; }
+  html.cf-native-ios .service-question h2 { margin-top: 5px; font-size: 24px; line-height: 1.12; }
+  html.cf-native-ios .service-question p { margin-top: 6px; font-size: 14px; line-height: 1.45; }
+  html.cf-native-ios .service-choice-grid { gap: 10px; margin-top: 16px; grid-template-columns: 1fr; }
+  html.cf-native-ios .service-choice-card,
+  html.cf-native-ios .service-choice-card.compact {
+    display: grid;
+    min-height: 88px;
+    grid-column: auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 3px 12px;
+    border-width: 1.5px;
+    border-radius: 17px;
+    padding: 13px;
+  }
+  html.cf-native-ios .service-choice-card .service-choice-icon,
+  html.cf-native-ios .service-choice-card.compact .service-choice-icon {
+    width: 50px;
+    height: 50px;
+    grid-row: 1 / 3;
+    border-radius: 15px;
+  }
+  html.cf-native-ios .service-choice-card > strong,
+  html.cf-native-ios .service-choice-card.compact > strong {
+    align-self: end;
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.15;
+  }
+  html.cf-native-ios .service-choice-card > small,
+  html.cf-native-ios .service-choice-card.compact > small {
+    align-self: start;
+    margin: 2px 0 0;
+    font-size: 13px;
+    line-height: 1.3;
+  }
+  html.cf-native-ios .service-choice-card .service-choice-action,
+  html.cf-native-ios .service-choice-card.compact .service-choice-action {
+    width: 34px;
+    height: 34px;
+    grid-column: 3;
+    grid-row: 1 / 3;
+    align-self: center;
+    justify-content: center;
+    margin: 0;
+    border-radius: 11px;
+    background: rgba(16, 185, 129, 0.12);
+    padding: 0;
+    font-size: 0;
+  }
+  html.cf-native-ios .service-client-search,
+  html.cf-native-ios .service-new-client-form,
+  html.cf-native-ios .service-quick-confirm { margin-top: 16px; }
+  html.cf-native-ios .service-client-search > label,
+  html.cf-native-ios .service-field label { margin-bottom: 7px; font-size: 15px; }
+  html.cf-native-ios .service-search-field,
+  html.cf-native-ios .service-field input { min-height: 54px; font-size: 17px; }
+  html.cf-native-ios .service-client-list { max-height: 42dvh; }
+  html.cf-native-ios .service-client-row { min-height: 76px; gap: 10px; padding: 10px; }
+  html.cf-native-ios .service-client-row small { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  html.cf-native-ios .service-client-row em { font-size: 11px; }
+  html.cf-native-ios .service-new-client-form { grid-template-columns: 1fr; gap: 13px; }
+  html.cf-native-ios .service-field.full,
+  html.cf-native-ios .service-new-actions,
+  html.cf-native-ios .service-form-help { grid-column: auto; }
+  html.cf-native-ios .service-new-actions { flex-direction: column-reverse; gap: 9px; }
+  html.cf-native-ios .service-new-actions > button,
+  html.cf-native-ios .service-primary-action,
+  html.cf-native-ios .service-secondary-action { width: 100%; min-height: 56px; font-size: 16px; }
+  html.cf-native-ios .service-form-help { font-size: 13px; text-align: left; }
+  html.cf-native-ios .service-table-grid { gap: 10px; margin-top: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  html.cf-native-ios .service-table-grid button { min-height: 118px; border-radius: 16px; }
+  html.cf-native-ios .service-table-grid button > strong { font-size: 34px; }
+  html.cf-native-ios .service-next-action,
+  html.cf-native-ios .service-open-action { position: sticky; z-index: 3; bottom: calc(var(--ios-tab-bar-height) + env(safe-area-inset-bottom) + 8px); }
+  html.cf-native-ios .service-summary-grid { grid-template-columns: 1fr; }
+  html.cf-native-ios .service-back-button { width: 100%; min-height: 50px; justify-content: center; margin-top: 10px; font-size: 15px; }
+
+  /* Mapa de mesas: status legível e toda a área preparada para toque. */
+  html.cf-native-ios .mesas-page { gap: 12px; }
+  html.cf-native-ios .mesas-toolbar { padding: 16px; }
+  html.cf-native-ios .mesas-toolbar .section-title { font-size: 25px; }
+  html.cf-native-ios .mesas-toolbar .section-subtitle { font-size: 14px; }
+  html.cf-native-ios .mesas-toolbar-actions { display: grid; width: 100%; grid-template-columns: 1fr 1fr; gap: 9px; }
+  html.cf-native-ios .mesas-toolbar-actions button { width: 100%; min-height: 48px; justify-content: center; font-size: 14px !important; }
+  html.cf-native-ios .mesas-summary { display: grid; margin-top: 14px; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 12px; }
+  html.cf-native-ios .mesas-summary > div { min-height: 42px; justify-content: center; border-radius: 12px; background: var(--surface-muted); padding: 8px; }
+  html.cf-native-ios .mesas-summary span:last-child { color: var(--text); font-size: 13px; }
+  html.cf-native-ios .mesas-grid { gap: 10px; }
+  html.cf-native-ios .mesas-grid .mesa-card {
+    min-height: 168px;
+    border-width: 1.5px;
+    border-radius: 18px;
+    padding: 12px;
+    outline: none;
+  }
+  html.cf-native-ios .mesas-grid .mesa-card:focus-visible { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2); }
+  html.cf-native-ios .mesa-card-tools button { display: grid; width: 34px; height: 34px; place-items: center; padding: 0; }
+  html.cf-native-ios .mesa-card-footer { min-height: 34px; padding-top: 8px; font-size: 13px; }
+  html.cf-native-ios .mesa-card-footer > span:first-child { width: 100%; text-align: center; }
+  html.cf-native-ios .mesa-card-footer > span:last-child { display: none; }
+
+  html.cf-native-ios .ios-setup-description { font-size: 15px; line-height: 1.55; }
+  html.cf-native-ios .ios-setup-form > label { font-size: 14px; }
+  html.cf-native-ios .ios-setup-security { font-size: 12px; }
 
   html.cf-native-ios button:hover,
   html.cf-native-ios a:hover,

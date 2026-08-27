@@ -65,8 +65,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p "require('./package.json').version")"
           app_path="frontend/ios/build/Build/Products/Release-iphoneos/ComandaFlow.app"
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist")"
           output_dir="dist/ios"
           ipa_name="ComandaFlow-Restaurante-${version}-iOS-Pro-Local.ipa"
           test -d "$app_path"

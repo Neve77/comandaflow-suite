@@ -36,21 +36,21 @@ import {
 } from 'lucide-react';
 
 const restaurantLinks = [
-  { to: '/atendimento', label: 'Novo atendimento', icon: UserRoundPlus   },
-  { to: '/dashboard',  label: 'Início',           icon: LayoutDashboard },
-  { to: '/comanda',    label: 'Comandas',          icon: ClipboardList   },
-  { to: '/mesas',      label: 'Mesas',             icon: UtensilsCrossed },
-  { to: '/products',   label: 'Produtos',          icon: Package         },
-  { to: '/pedidos',    label: 'Cozinha / Pedidos', icon: ChefHat         },
-  { to: '/finance',    label: 'Caixa',             icon: DollarSign      },
-  { to: '/reports',    label: 'Relatórios',        icon: BarChart3       },
-  { to: '/clients',    label: 'Clientes',          icon: Users           },
-  { to: '/devices',    label: 'Conectar celular',  icon: Smartphone      },
-  { to: '/settings',   label: 'Configurações',     icon: Settings        },
-  { to: '/support',    label: 'Suporte',            icon: Headphones      },
+  { to: '/atendimento', label: 'Receber cliente',       shortLabel: 'Atender', icon: UserRoundPlus,   group: 'Atendimento' },
+  { to: '/mesas',       label: 'Mapa de mesas',          shortLabel: 'Mesas',   icon: UtensilsCrossed, group: 'Atendimento' },
+  { to: '/comanda',     label: 'Contas abertas',                              icon: ClipboardList,   group: 'Atendimento' },
+  { to: '/pedidos',     label: 'Cozinha / pedidos',      shortLabel: 'Cozinha', icon: ChefHat,         group: 'Atendimento' },
+  { to: '/dashboard',   label: 'Resumo do dia',          shortLabel: 'Início',  icon: LayoutDashboard, group: 'Gestão' },
+  { to: '/finance',     label: 'Caixa e recebimentos',                        icon: DollarSign,      group: 'Gestão' },
+  { to: '/reports',     label: 'Relatórios',                                  icon: BarChart3,       group: 'Gestão' },
+  { to: '/products',    label: 'Cardápio e produtos',                         icon: Package,         group: 'Cadastros' },
+  { to: '/clients',     label: 'Clientes cadastrados',                        icon: Users,           group: 'Cadastros' },
+  { to: '/devices',     label: 'Conectar celular',                            icon: Smartphone,      group: 'Sistema' },
+  { to: '/settings',    label: 'Configurações',                               icon: Settings,        group: 'Sistema' },
+  { to: '/support',     label: 'Suporte',                                     icon: Headphones,      group: 'Sistema' },
 ];
 
-const iosPrimaryPaths = ['/atendimento', '/mesas', '/comanda', '/pedidos'];
+const iosPrimaryPaths = ['/atendimento', '/mesas', '/comanda', '/dashboard'];
 
 export default function Layout() {
   const { logout, user, system } = useAuth();
@@ -76,10 +76,10 @@ export default function Layout() {
   const currentRestaurantItem = managerMode ? null : restaurantLinks.find((item) => location.pathname === item.to);
   const restaurantName = managerMode ? 'Painel do Proprietario' : configuredRestaurantName;
   const headerTitle = nativeIOS && !managerMode
-    ? restaurantName
+    ? currentRestaurantItem?.label || 'Operação do restaurante'
     : currentManagerItem?.label || currentRestaurantItem?.label || restaurantName;
   const headerSubtitle = nativeIOS && !managerMode
-    ? currentRestaurantItem?.label || 'Operação do restaurante'
+    ? restaurantName
     : user?.name || 'Administrador';
   const iosPrimaryLinks = restaurantLinks.filter((item) => iosPrimaryPaths.includes(item.to));
   const iosMoreActive = nativeIOS
@@ -245,31 +245,21 @@ export default function Layout() {
                 </NavLink>
               ))}
             </div>
-          )) : <>
-            <p className="sidebar-section-label">Principal</p>
-            {links.slice(0, 7).map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
-              >
-                <Icon size={17} />
-                <span>{label}</span>
-              </NavLink>
-            ))}
-          </>}
-          {!managerMode && <p className="sidebar-section-label" style={{ marginTop: 8 }}>Gerencial</p>}
-          {!managerMode && links.slice(7).map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              onClick={() => setMobileMenuOpen(false)}
-              className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
-            >
-              <Icon size={17} />
-              <span>{label}</span>
-            </NavLink>
+          )) : [...new Set(links.map((item) => item.group))].map((group) => (
+            <div key={group} className="contents">
+              <p className="sidebar-section-label">{group}</p>
+              {links.filter((item) => item.group === group).map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) => `sidebar-link ${isActive ? 'sidebar-link-active' : ''}`}
+                >
+                  <Icon size={17} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
         <div className="sidebar-footer">
@@ -333,7 +323,7 @@ export default function Layout() {
           <div className="top-header-right">
             <button
               type="button"
-              className="header-icon-btn"
+              className="header-icon-btn header-theme-toggle"
               title={darkMode ? 'Modo claro' : 'Modo escuro'}
               onClick={() => setDarkMode(d => !d)}
             >
@@ -380,14 +370,14 @@ export default function Layout() {
       {nativeIOS && !managerMode && (
         <nav className="ios-tab-bar" aria-label="Navegação rápida">
           <div className="ios-tab-bar-inner">
-            {iosPrimaryLinks.map(({ to, label, icon: Icon }) => (
+            {iosPrimaryLinks.map(({ to, label, shortLabel, icon: Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) => `ios-tab-item ${isActive ? 'ios-tab-item-active' : ''}`}
               >
                 <Icon size={21} strokeWidth={2.1} />
-                <span>{label === 'Cozinha / Pedidos' ? 'Pedidos' : label}</span>
+                <span>{shortLabel || label}</span>
               </NavLink>
             ))}
             <button

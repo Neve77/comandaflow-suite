@@ -56,6 +56,10 @@ export default function AtendimentoPage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    document.querySelector('.content-area')?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [clientMode, step]);
+
   const availableMesas = useMemo(() => mesas.filter((mesa) => {
     const hasOpenComanda = mesa.comandas?.some((comanda) => comanda.status === 'aberta');
     return mesa.status === 'livre' && !hasOpenComanda;
@@ -232,21 +236,21 @@ export default function AtendimentoPage() {
               <div className="service-choice-grid">
                 <button type="button" onClick={() => setClientMode('existing')} className="service-choice-card primary">
                   <span className="service-choice-icon"><Search size={29} /></span>
-                  <strong>Sim, já tem cadastro</strong>
+                  <strong>Cliente cadastrado</strong>
                   <small>Buscar pelo nome, telefone ou CPF</small>
                   <span className="service-choice-action">Buscar cliente <ArrowRight size={19} /></span>
                 </button>
                 <button type="button" onClick={() => setClientMode('new')} className="service-choice-card">
                   <span className="service-choice-icon"><UserRoundPlus size={29} /></span>
-                  <strong>Não, é cliente novo</strong>
+                  <strong>Cliente novo</strong>
                   <small>Cadastrar os dados antes de abrir a mesa</small>
                   <span className="service-choice-action">Cadastrar cliente <ArrowRight size={19} /></span>
                 </button>
-                <button type="button" onClick={() => setClientMode('quick')} className="service-choice-card compact">
+                <button type="button" onClick={() => { setClientMode('quick'); setClient({ ...EMPTY_CLIENT, nome: 'Cliente da mesa' }); setStep(2); }} className="service-choice-card compact">
                   <span className="service-choice-icon"><Users size={26} /></span>
-                  <strong>Atendimento rápido</strong>
+                  <strong>Sem cadastro</strong>
                   <small>Continuar sem dados pessoais</small>
-                  <span className="service-choice-action">Usar cliente da mesa <ArrowRight size={19} /></span>
+                  <span className="service-choice-action">Escolher mesa <ArrowRight size={19} /></span>
                 </button>
               </div>
             )}

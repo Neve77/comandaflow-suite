@@ -20,8 +20,8 @@ assert(capacitor.webDir === 'dist', 'Diretorio web do Capacitor incorreto.');
 
 const project = read('frontend/ios/App/App.xcodeproj/project.pbxproj');
 assert(project.includes('PRODUCT_BUNDLE_IDENTIFIER = com.orqium.comandaflow.restaurant;'), 'Bundle ID ausente no projeto Xcode.');
-assert(project.includes('MARKETING_VERSION = 2.4.6;'), 'Versao 2.4.6 ausente no projeto Xcode.');
-assert(project.includes('CURRENT_PROJECT_VERSION = 4;'), 'Build 4 do aplicativo iOS ausente no projeto Xcode.');
+assert(project.includes('MARKETING_VERSION = 2.5.0;'), 'Versao 2.5.0 ausente no projeto Xcode.');
+assert(project.includes('CURRENT_PROJECT_VERSION = 5;'), 'Build 5 do aplicativo iOS ausente no projeto Xcode.');
 
 const infoPlist = read('frontend/ios/App/App/Info.plist');
 assert(infoPlist.includes('<string>ComandaFlow Restaurante</string>'), 'Nome de exibicao ausente no Info.plist.');
@@ -53,7 +53,9 @@ assert(backendSocket.includes("'capacitor://localhost'"), 'Origem iOS ausente no
 assert(backendSocket.includes("process.env.COMANDAFLOW_BIND_HOST || '0.0.0.0'"), 'Backend nao esta disponivel na rede local.');
 assert(mobileConfig.includes('isPrivateIPv4'), 'Validacao de IP privado ausente no aplicativo iOS.');
 assert(mobileLayout.includes('ios-tab-bar'), 'Navegacao inferior nativa ausente no layout iOS.');
+assert(mobileLayout.includes("'/comanda'"), 'Atalho Contas ausente da navegacao principal iOS.');
 assert(mobileStyles.includes('.ios-tab-item-active'), 'Estado ativo da navegacao iOS ausente.');
 assert(mobileStyles.includes('@keyframes ios-sheet-in'), 'Bottom sheet do menu iOS ausente.');
-
+assert(mobileStyles.includes('.service-choice-card.compact'), 'Escolha compacta de cliente ausente no iOS.');
+assert(mobileStyles.includes('.mesas-toolbar-actions'), 'Mapa simplificado de mesas ausente no iOS.');
 console.log('[IOS] Projeto aprovado: Capacitor, rede local, Xcode, CORS, identidade visual e workflow do Sideloadly prontos.');

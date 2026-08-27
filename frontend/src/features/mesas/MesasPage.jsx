@@ -153,16 +153,16 @@ export default function MesasPage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      <section className="panel p-6">
+    <div className="mesas-page space-y-6">
+      <section className="mesas-toolbar panel p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="section-title">Mesas do Restaurante</h1>
+            <h1 className="section-title">Mesas</h1>
             <p className="section-subtitle">
-              Mapa visual de ocupação e histórico de clientes atendidos por mesa ao longo do dia.
+              Toque em uma mesa livre para receber um cliente ou em uma ocupada para abrir a conta.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="mesas-toolbar-actions flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => fetchMesas(true)}
@@ -182,7 +182,7 @@ export default function MesasPage() {
             </button>
           </div>
         </div>
-        <div className="mt-5 flex flex-wrap items-center gap-5 border-t border-slate-100 pt-4 text-xs font-semibold">
+        <div className="mesas-summary mt-5 flex flex-wrap items-center gap-5 border-t border-slate-100 pt-4 text-xs font-semibold">
           <div className="flex items-center gap-2">
             <span className="h-3.5 w-3.5 rounded-sm border border-emerald-300 bg-emerald-100" />
             <span className="text-slate-700">Livre ({livres})</span>
@@ -190,10 +190,6 @@ export default function MesasPage() {
           <div className="flex items-center gap-2">
             <span className="h-3.5 w-3.5 rounded-sm border border-slate-400 bg-slate-900" />
             <span className="text-slate-700">Ocupada ({ocupadas})</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="h-3.5 w-3.5 rounded-sm border border-amber-300 bg-amber-100" />
-            <span className="text-slate-700">Em Fechamento</span>
           </div>
         </div>
       </section>
@@ -204,7 +200,7 @@ export default function MesasPage() {
           <span>{error}</span>
         </div>
       )}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <div className="mesas-grid grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {mesas.map((mesa) => {
           const comandaAberta = mesa.comandas?.find((c) => c.status === 'aberta');
           const isOcupada = mesa.status === 'ocupada' || Boolean(comandaAberta);
@@ -215,6 +211,16 @@ export default function MesasPage() {
             <div
               key={mesa.id}
               onClick={() => handleMesaClick(mesa)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handleMesaClick(mesa);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              aria-label={isOcupada ? `Mesa ${mesa.numero} ocupada. Abrir conta.` : `Mesa ${mesa.numero} livre. Receber cliente.`}
+              data-status={isOcupada ? 'ocupada' : 'livre'}
               className={`mesa-card group ${
                 isOcupada ? 'mesa-card-ocupada' : 'mesa-card-livre'
               }`}
@@ -223,7 +229,7 @@ export default function MesasPage() {
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
                   MESA
                 </span>
-                <div className="flex items-center gap-1">
+                <div className="mesa-card-tools flex items-center gap-1">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -291,7 +297,7 @@ export default function MesasPage() {
                 )}
               </div>
 
-              <div className="mt-3 w-full border-t border-slate-200/70 pt-2 flex items-center justify-between text-xs font-semibold text-slate-700 group-hover:text-slate-950">
+              <div className="mesa-card-footer mt-3 w-full border-t border-slate-200/70 pt-2 flex items-center justify-between text-xs font-semibold text-slate-700 group-hover:text-slate-950">
                 <span>{isOcupada ? 'Ver comanda →' : '+ Abrir mesa'}</span>
                 <span
                   onClick={(e) => {
